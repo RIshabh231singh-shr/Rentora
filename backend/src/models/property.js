@@ -60,11 +60,33 @@ const PropertySchema = new Schema({
     },
     capacity : {
         type : Number,
-        required: true
+        required: true,
+        min : 1
     },
     amenities : {
         type : [String],
         required: true
+    },
+    pricePerHour : {
+        type : Number,
+        required : true,
+        min : 0
+    },
+    securityDeposit : {
+        type : Number,
+        required : true,
+        min : 0
+    },
+    reviews : {
+        type : [Schema.Types.ObjectId],
+        ref : "Review",
+        default : []
+    },
+    ratings : {
+        type : Number,
+        default : 0,
+        min : 0,
+        max : 5
     }
 },{
     timestamps : true
