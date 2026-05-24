@@ -58,6 +58,10 @@ const PropertySchema = new Schema({
         required: true,
         trim: true
     },
+    capacity : {
+        type : Number,
+        required: true
+    },
     amenities : {
         type : [String],
         required: true
