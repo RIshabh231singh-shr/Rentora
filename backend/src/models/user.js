@@ -13,7 +13,6 @@ const UserSchema = new Schema(
     },
     lastname: {
       type: String,
-      required: true,
       trim: true,
       minlength: 3,
       maxlength: 40,
