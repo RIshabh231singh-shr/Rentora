@@ -4,11 +4,11 @@ const redisClient = require("../config/redis.js");
 
 const adminAuthMiddleware = async (req, res, next) => {
     try {
-        const { accesstoken } = req.cookies;
-        if (!accesstoken) {
+        const accessToken = req.cookies.accessToken || req.cookies.accesstoken;
+        if (!accessToken) {
             return res.status(401).json({ message: "Unauthorized" });
         }
-        const payload = jwt.verify(accesstoken, process.env.JWT_ACCESS_SECRET);
+        const payload = jwt.verify(accessToken, process.env.JWT_ACCESS_SECRET);
         const { id, role } = payload;
         // Role check: Only Admin is allowed to access admin areas
         if (role !== "admin") {
@@ -19,7 +19,10 @@ const adminAuthMiddleware = async (req, res, next) => {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
-        const isblacklisted = await redisClient.exists(`blacklist:${accesstoken}`);
+        let isblacklisted = false;
+        if (redisClient.isOpen) {
+            isblacklisted = await redisClient.exists(`blacklist:${accessToken}`);
+        }
         if (isblacklisted) {
             return res.status(401).json({ message: "Unauthorized! Token is not valid" });
         }

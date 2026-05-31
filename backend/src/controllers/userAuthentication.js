@@ -47,7 +47,7 @@ const registerUser = async (req, res) => {
             secure: true,
             sameSite: "none",
             maxAge: 7 * 24 * 60 * 60 * 1000,
-            path : "/auth/refresh"
+            path : "/auth"
         });
         const userData = {
             id : user._id,
@@ -116,7 +116,7 @@ const loginUser = async (req,res) => {
             secure: true,
             sameSite: "none",
             maxAge: 7 * 24 * 60 * 60 * 1000,
-            path : "/auth/refresh"
+            path : "/auth"
         });
         const userData = {
             id : user._id,
@@ -140,40 +140,58 @@ const logoutUser = async (req, res) => {
     try{
         const { accessToken, refreshToken } = req.cookies;
         if(accessToken){
-            const decodedAccess = jwt.verify(
-                accessToken,
-                process.env.JWT_ACCESS_SECRET
-            );
-            await redisClient.set(
-                `blacklist:${accessToken}`,
-                "blocked"
-            );
-            await redisClient.expireAt(
-                `blacklist:${accessToken}`,
-                decodedAccess.exp
-            );
+            try {
+                const decodedAccess = jwt.verify(
+                    accessToken,
+                    process.env.JWT_ACCESS_SECRET
+                );
+                if (redisClient.isOpen) {
+                    await redisClient.set(
+                        `blacklist:${accessToken}`,
+                        "blocked"
+                    );
+                    await redisClient.expireAt(
+                        `blacklist:${accessToken}`,
+                        decodedAccess.exp
+                    );
+                }
+            } catch (err) {
+                console.warn("Could not blacklist accessToken during logout:", err.message);
+            }
         }
 
         if(refreshToken){
-
-            const decodedRefresh = jwt.verify(
-                refreshToken,
-                process.env.JWT_REFRESH_SECRET
-            );
-            await redisClient.set(
-                `blacklist:${refreshToken}`,
-                "blocked"
-            );
-            await redisClient.expireAt(
-                `blacklist:${refreshToken}`,
-                decodedRefresh.exp
-            );
+            try {
+                const decodedRefresh = jwt.verify(
+                    refreshToken,
+                    process.env.JWT_REFRESH_SECRET
+                );
+                if (redisClient.isOpen) {
+                    await redisClient.set(
+                        `blacklist:${refreshToken}`,
+                        "blocked"
+                    );
+                    await redisClient.expireAt(
+                        `blacklist:${refreshToken}`,
+                        decodedRefresh.exp
+                    );
+                }
+            } catch (err) {
+                console.warn("Could not blacklist refreshToken during logout:", err.message);
+            }
         }
 
-        res.clearCookie("accessToken");
+        res.clearCookie("accessToken", {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none"
+        });
 
         res.clearCookie("refreshToken", {
-            path : "/auth/refresh"
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+            path : "/auth"
         });
 
         return res.status(200).json({
@@ -195,6 +213,16 @@ const refreshAccessToken = async (req, res) => {
                 message : "Refresh token missing"
             });
         }
+
+        if (redisClient.isOpen) {
+            const isBlacklisted = await redisClient.exists(`blacklist:${refreshToken}`);
+            if (isBlacklisted) {
+                return res.status(401).json({
+                    message : "Refresh token is blacklisted"
+                });
+            }
+        }
+
         const decoded = jwt.verify(
             refreshToken,
             process.env.JWT_REFRESH_SECRET
@@ -212,7 +240,7 @@ const refreshAccessToken = async (req, res) => {
         );
         res.cookie("accessToken", accessToken, {
             httpOnly : true,
-            secure : process.env.NODE_ENV === "production",
+            secure : true,
             sameSite : "none",
             maxAge : 15 * 60 * 1000
         });
