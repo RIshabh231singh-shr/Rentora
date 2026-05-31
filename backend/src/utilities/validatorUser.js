@@ -14,7 +14,7 @@ const validateUser = (data) =>{
     if (!validator.isStrongPassword(data.password)) {
         throw new Error("Weak Password");
     }
-    if(!validator.isMobilePhone(data.phoneNumber,"IN")){
+    if(!validator.isMobilePhone(data.phoneNumber,"en-IN")){
         throw new Error("Invalid Phone Number");
     }
     if(!validator.isLength(data.firstname,{min:3,max:40})){

@@ -16,7 +16,7 @@ const registerUser = async (req, res) => {
             throw new Error("Email already exists");
         }
         req.body.password = await bcrypt.hash(req.body.password,10);
-        req.body.role = "tenant";
+        req.body.role = req.body.role || "tenant";
         const user = await User.create(req.body);
 
         const payload =  {
