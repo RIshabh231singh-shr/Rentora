@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -5,8 +7,6 @@ const main = require("./config/db");
 const redisClient = require("./config/redis");
 const authRoutes = require("./routes/auth");
 const propertyRoutes = require("./routes/properties");
-
-require("dotenv").config();
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -35,11 +35,12 @@ const initializeConnection = async () => {
     }
 
     try {
-        // Connect to Redis (optional during dev)
+        // Connect to Redis (mandatory)
         await redisClient.connect();
         console.log("Redis connected successfully");
     } catch (redisErr) {
-        console.warn("Redis Connection Warning: Could not connect to Redis. Logout token blacklisting will be disabled.", redisErr.message);
+        console.error("Redis Connection Error: Could not connect to Redis.", redisErr.message);
+        process.exit(1); // Exit if Redis connection fails
     }
 
     try {
@@ -48,6 +49,7 @@ const initializeConnection = async () => {
         });
     } catch (err) {
         console.error("Server startup error:", err.message);
+        process.exit(1);
     }
 };
 

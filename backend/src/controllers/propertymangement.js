@@ -1,5 +1,7 @@
+const mongoose = require("mongoose");
 const Property = require("../models/property");
 const User = require("../models/user");
+const Notification = require("../models/notification");
 
 
 // POST /api/properties
@@ -514,7 +516,7 @@ const addTenantToProperty = async (req, res) => {
                 recipient: property.owner,
                 type: "TENANT_REQUEST",
                 title: "New Tenant Request",
-                message: `${user.name || user.email} has requested to join ${property.address}`,
+                message: `${user.name || user.email} has requested to join ${property.propertyAddress}`,
                 relatedProperty: propertyId,
                 relatedUser: tenantId,
                 status: "unread"
@@ -558,7 +560,7 @@ const addTenantToProperty = async (req, res) => {
                 recipient: tenantId,
                 type: "TENANT_ADDED",
                 title: "Added to Property",
-                message: `You have been added to ${property.address}`,
+                message: `You have been added to ${property.propertyAddress}`,
                 relatedProperty: propertyId,
                 relatedUser: req.user.id,
                 status: "unread"
@@ -647,7 +649,7 @@ const acceptTenantRequest = async (req, res) => {
             recipient: tenantId,
             type: "TENANT_REQUEST_ACCEPTED",
             title: "Tenant Request Accepted",
-            message: `Your request to join ${updated.address} has been accepted!`,
+            message: `Your request to join ${updated.propertyAddress} has been accepted!`,
             relatedProperty: propertyId,
             relatedUser: req.user.id,
             status: "unread"
@@ -735,7 +737,7 @@ const rejectTenantRequest = async (req, res) => {
             recipient: tenantId,
             type: "TENANT_REQUEST_REJECTED",
             title: "Tenant Request Declined",
-            message: `Your request to join ${updated.address} was declined by the landlord.`,
+            message: `Your request to join ${updated.propertyAddress} was declined by the landlord.`,
             relatedProperty: propertyId,
             relatedUser: req.user.id,
             status: "unread"
@@ -786,8 +788,8 @@ const getPendingTenantRequests = async (req, res) => {
 
         // Fetch properties with pagination
         const properties = await Property.find(query)
-            .select('_id address pendingTenants owner')
-            .populate('pendingTenants', 'name email phone createdAt')
+            .select('_id propertyAddress pendingTenants owner')
+            .populate('pendingTenants', 'firstname lastname email phoneNumber createdAt')
             .sort({ updatedAt: -1 }) // Most recently updated first
             .skip(skip)
             .limit(limit)
@@ -796,13 +798,13 @@ const getPendingTenantRequests = async (req, res) => {
         // Format the response
         const pendingRequests = properties.map(property => ({
             propertyId: property._id,
-            propertyAddress: property.address,
+            propertyAddress: property.propertyAddress,
             ...(req.user.role === "admin" && { ownerId: property.owner }),
             pendingTenants: property.pendingTenants.map(tenant => ({
                 id: tenant._id,
-                name: tenant.name,
+                name: `${tenant.firstname || ''} ${tenant.lastname || ''}`.trim() || tenant.email,
                 email: tenant.email,
-                phone: tenant.phone,
+                phone: tenant.phoneNumber,
                 requestedAt: tenant.createdAt || tenant.requestedAt
             })),
             pendingCount: property.pendingTenants.length
@@ -850,7 +852,7 @@ const removeTenantFromProperty = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid tenant ID" });
         }
 
-        const property = await Property.findById(propertyId).select('owner address tenants pendingTenants');
+        const property = await Property.findById(propertyId).select('owner propertyAddress tenants pendingTenants');
         if (!property) {
             return res.status(404).json({ success: false, message: "Property not found" });
         }
@@ -891,12 +893,12 @@ const removeTenantFromProperty = async (req, res) => {
         const removedAt = new Date().toISOString();
 
         const removalMessage = isSelfRemoval
-            ? `You have been removed from ${updated.address} by your own request.`
+            ? `You have been removed from ${updated.propertyAddress} by your own request.`
             : isOwner
-                ? `You have been removed from ${updated.address} by the property owner.`
+                ? `You have been removed from ${updated.propertyAddress} by the property owner.`
                 : isAdmin
-                    ? `You have been removed from ${updated.address} by an administrator.`
-                    : `You have been removed from ${updated.address}.`; // unreachable, but safe
+                    ? `You have been removed from ${updated.propertyAddress} by an administrator.`
+                    : `You have been removed from ${updated.propertyAddress}.`; // unreachable, but safe
 
         // Fire-and-forget — intentionally not awaited.
         Notification.create({

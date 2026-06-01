@@ -49,6 +49,11 @@ const PropertySchema = new Schema({
         type : Schema.Types.ObjectId,
         ref : "User"
     }],
+    pendingTenants : [{
+        type : Schema.Types.ObjectId,
+        ref : "User",
+        default : []
+    }],
     images :{
         type: [String],
         default:[]

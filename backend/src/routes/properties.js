@@ -12,11 +12,15 @@ const {
     getPropertyById,
     addTenantToProperty,
     removeTenantFromProperty,
-    getTenantsOfProperty
+    getTenantsOfProperty,
+    acceptTenantRequest,
+    rejectTenantRequest,
+    getPendingTenantRequests
 } = require("../controllers/propertymangement");
 
 // Landlord Routes
 router.post("/", landlordAuthMiddleware, createProperty);
+router.get("/pending-requests", landlordAuthMiddleware, getPendingTenantRequests);
 router.patch("/:propertyId", landlordAuthMiddleware, updateProperty);
 router.delete("/:propertyId", landlordAuthMiddleware, deleteProperty);
 
@@ -28,5 +32,7 @@ router.get("/:propertyId", tenantAuthMiddleware, getPropertyById);
 router.post("/:propertyId/tenants", tenantAuthMiddleware, addTenantToProperty);
 router.delete("/:propertyId/tenants/:tenantId", tenantAuthMiddleware, removeTenantFromProperty);
 router.get("/:propertyId/tenants", tenantAuthMiddleware, getTenantsOfProperty);
+router.post("/:propertyId/tenants/:tenantId/accept", landlordAuthMiddleware, acceptTenantRequest);
+router.post("/:propertyId/tenants/:tenantId/reject", landlordAuthMiddleware, rejectTenantRequest);
 
 module.exports = router;
