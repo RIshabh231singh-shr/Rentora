@@ -257,5 +257,28 @@ const refreshAccessToken = async (req, res) => {
 
 };
 
+const getProfile = async (req,res) => {
+    try{
+        const user = await User.findById(req.user.id)
+            .select("-password");
 
-module.exports = {registerUser,loginUser,logoutUser,refreshAccessToken};
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Profile fetched successfully",
+            data: user
+        });
+    }catch(err){
+        return res.status(500).json({
+            message : err.message
+        });
+    }
+}
+
+module.exports = {registerUser,loginUser,logoutUser,refreshAccessToken,getProfile};

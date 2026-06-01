@@ -4,6 +4,7 @@ const cookieParser = require("cookie-parser");
 const main = require("./config/db");
 const redisClient = require("./config/redis");
 const authRoutes = require("./routes/auth");
+const propertyRoutes = require("./routes/properties");
 
 require("dotenv").config();
 
@@ -21,6 +22,7 @@ app.use(cookieParser());
 
 // Routes
 app.use("/auth", authRoutes);
+app.use("/api/properties", propertyRoutes);
 
 const initializeConnection = async () => {
     try {
