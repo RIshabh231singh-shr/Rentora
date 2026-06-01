@@ -423,6 +423,573 @@ const getPropertyById = async (req, res) => {
 
 
 
+// POST /api/properties/:propertyId/tenants
+// Controller function
+const addTenantToProperty = async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const { propertyId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+            return res.status(400).json({ success: false, message: "Invalid property ID" });
+        }
+
+        const requesterId = req.user.id.toString();
+        const requesterRole = req.user.role;
+
+        let tenantId;
+        if (requesterRole === "tenant") {
+            tenantId = requesterId;
+        } else {
+            if (!req.body.tenantId) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "tenantId is required for landlords and admins" 
+                });
+            }
+            tenantId = req.body.tenantId.toString();
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(tenantId)) {
+            return res.status(400).json({ success: false, message: "Invalid tenant ID" });
+        }
+
+        // Fetch property with lean for better performance
+        const property = await Property.findById(propertyId).lean();
+        if (!property) {
+            return res.status(404).json({ success: false, message: "Property not found" });
+        }
+
+        const alreadyTenant = property.tenants?.some(id => id.toString() === tenantId);
+        if (alreadyTenant) {
+            return res.status(400).json({ success: false, message: "User is already a tenant" });
+        }
+
+        const hasPendingRequest = property.pendingTenants?.some(id => id.toString() === tenantId);
+        if (hasPendingRequest) {
+            return res.status(400).json({
+                success: false,
+                message: "User already has a pending request for this property"
+            });
+        }
+
+        const user = await User.findById(tenantId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        if (user.role !== "tenant") {
+            return res.status(400).json({
+                success: false,
+                message: `User with role '${user.role}' cannot be added as a tenant`
+            });
+        }
+
+        const isSelfRequest = tenantId === requesterId && requesterRole === "tenant";
+        const isLandlord = property.owner.toString() === requesterId;
+        const isAdmin = requesterRole === "admin";
+
+        // Case 1: Tenant self-request
+        if (isSelfRequest) {
+            // Check capacity before allowing pending request
+            if (property.tenants.length >= property.capacity) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Cannot request: Property is at full capacity (${property.tenants.length}/${property.capacity})`
+                });
+            }
+
+            const updatedProperty = await Property.findByIdAndUpdate(
+                propertyId,
+                {
+                    $addToSet: { pendingTenants: tenantId }  // $addToSet prevents duplicates
+                },
+                { new: true }
+            );
+
+            // Fire notification without awaiting to prevent blocking
+            Notification.create({
+                recipient: property.owner,
+                type: "TENANT_REQUEST",
+                title: "New Tenant Request",
+                message: `${user.name || user.email} has requested to join ${property.address}`,
+                relatedProperty: propertyId,
+                relatedUser: tenantId,
+                status: "unread"
+            }).catch(err => console.error("Notification failed:", err));
+
+            return res.status(200).json({
+                success: true,
+                message: "Join request sent for approval",
+                data: {
+                    propertyId,
+                    tenantId,
+                    status: "pending",
+                    currentOccupancy: property.tenants.length,
+                    capacity: property.capacity
+                }
+            });
+        }
+
+        // Case 2: Landlord/Admin direct add
+        if (isLandlord || isAdmin) {
+            const updated = await Property.findOneAndUpdate(
+                {
+                    _id: propertyId,
+                    $expr: { $lt: [{ $size: "$tenants" }, "$capacity" ] }
+                },
+                {
+                    $push: { tenants: tenantId },
+                    $pull: { pendingTenants: tenantId }
+                },
+                { new: true }
+            );
+
+            if (!updated) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Property at capacity (${property.tenants.length}/${property.capacity})`
+                });
+            }
+
+            Notification.create({
+                recipient: tenantId,
+                type: "TENANT_ADDED",
+                title: "Added to Property",
+                message: `You have been added to ${property.address}`,
+                relatedProperty: propertyId,
+                relatedUser: req.user.id,
+                status: "unread"
+            }).catch(err => console.error("Notification failed:", err));
+
+            return res.status(200).json({
+                success: true,
+                message: "Tenant added successfully",
+                data: {
+                    tenantId,
+                    propertyId,
+                    totalTenants: updated.tenants.length,
+                    availableSpots: property.capacity - updated.tenants.length
+                }
+            });
+        }
+
+        return res.status(403).json({
+            success: false,
+            message: "Unauthorized to add tenants to this property"
+        });
+
+    } catch (err) {
+        console.error("addTenantToProperty error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+// New controller function: Accept tenant request
+const acceptTenantRequest = async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const { propertyId, tenantId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(propertyId) || !mongoose.Types.ObjectId.isValid(tenantId)) {
+            return res.status(400).json({ success: false, message: "Invalid ID format" });
+        }
+
+        // Atomic update - prevents race conditions
+        const updated = await Property.findOneAndUpdate(
+            {
+                _id: propertyId,
+                pendingTenants: tenantId,
+                $expr: { $lt: [{ $size: "$tenants" }, "$capacity" ] }
+            },
+            {
+                $push: { tenants: tenantId },
+                $pull: { pendingTenants: tenantId }
+            },
+            { new: true }
+        );
+
+        if (!updated) {
+            // Check why it failed for better error message
+            const property = await Property.findById(propertyId).select('pendingTenants tenants capacity');
+            if (!property) {
+                return res.status(404).json({ success: false, message: "Property not found" });
+            }
+            
+            const isPending = property.pendingTenants?.some(id => id.toString() === tenantId);
+            const hasCapacity = property.tenants.length < property.capacity;
+            
+            if (!isPending) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "No pending request found for this tenant" 
+                });
+            }
+            if (!hasCapacity) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `Property at capacity (${property.tenants.length}/${property.capacity})` 
+                });
+            }
+            return res.status(400).json({ 
+                success: false, 
+                message: "Unable to accept tenant request" 
+            });
+        }
+
+        // Fire notification asynchronously
+        Notification.create({
+            recipient: tenantId,
+            type: "TENANT_REQUEST_ACCEPTED",
+            title: "Tenant Request Accepted",
+            message: `Your request to join ${updated.address} has been accepted!`,
+            relatedProperty: propertyId,
+            relatedUser: req.user.id,
+            status: "unread"
+        }).catch(err => console.error("Acceptance notification failed:", err));
+
+        // Log for audit trail
+        console.log(`Tenant ${tenantId} accepted to property ${propertyId} by ${req.user.id} (${req.user.role})`);
+
+        return res.status(200).json({
+            success: true,
+            message: "Tenant request accepted successfully",
+            data: {
+                tenantId,
+                propertyId,
+                totalTenants: updated.tenants.length,
+                availableSpots: updated.capacity - updated.tenants.length,
+                pendingRemaining: updated.pendingTenants?.length || 0
+            }
+        });
+
+    } catch (err) {
+        console.error("acceptTenantRequest error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+// New controller function: Reject tenant request
+const rejectTenantRequest = async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const { propertyId, tenantId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(propertyId) || !mongoose.Types.ObjectId.isValid(tenantId)) {
+            return res.status(400).json({ success: false, message: "Invalid ID format" });
+        }
+
+        // Atomic update - prevents race conditions
+        const updated = await Property.findOneAndUpdate(
+            {
+                _id: propertyId,
+                pendingTenants: tenantId
+            },
+            {
+                $pull: { pendingTenants: tenantId }
+            },
+            { new: true }
+        );
+
+        if (!updated) {
+            const property = await Property.findById(propertyId).select('pendingTenants');
+            if (!property) {
+                return res.status(404).json({ success: false, message: "Property not found" });
+            }
+            
+            const hasPendingRequest = property.pendingTenants?.some(id => id.toString() === tenantId);
+            if (!hasPendingRequest) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "No pending request found for this tenant" 
+                });
+            }
+            
+            return res.status(400).json({ 
+                success: false, 
+                message: "Unable to reject tenant request" 
+            });
+        }
+
+        // Verify authorization
+        const isLandlord = updated.owner.toString() === req.user.id.toString();
+        const isAdmin = req.user.role === "admin";
+
+        if (!isLandlord && !isAdmin) {
+            return res.status(403).json({ 
+                success: false, 
+                message: "Only property owner or admin can reject tenant requests" 
+            });
+        }
+
+        // Send notification (fire and forget)
+        Notification.create({
+            recipient: tenantId,
+            type: "TENANT_REQUEST_REJECTED",
+            title: "Tenant Request Declined",
+            message: `Your request to join ${updated.address} was declined by the landlord.`,
+            relatedProperty: propertyId,
+            relatedUser: req.user.id,
+            status: "unread"
+        }).catch(err => console.error("Rejection notification failed:", err));
+
+        // Audit log
+        console.log(`Tenant ${tenantId} rejected from property ${propertyId} by ${req.user.id} (${req.user.role})`);
+
+        return res.status(200).json({
+            success: true,
+            message: "Tenant request rejected successfully",
+            data: {
+                tenantId,
+                propertyId,
+                rejectedAt: new Date().toISOString(),
+                rejectedBy: {
+                    id: req.user.id,
+                    role: req.user.role
+                }
+            }
+        });
+
+    } catch (err) {
+        console.error("rejectTenantRequest error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+// Get pending requests for a landlord
+const getPendingTenantRequests = async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = Math.min(parseInt(req.query.limit) || 20, 100); // Max 100 per page
+        const skip = (page - 1) * limit;
+
+        // Build query based on user role
+        let query = { pendingTenants: { $exists: true, $ne: [] } };
+        if (req.user.role !== "admin") {
+            query.owner = req.user.id;
+        }
+
+        // Get total count for pagination
+        const totalProperties = await Property.countDocuments(query);
+
+        // Fetch properties with pagination
+        const properties = await Property.find(query)
+            .select('_id address pendingTenants owner')
+            .populate('pendingTenants', 'name email phone createdAt')
+            .sort({ updatedAt: -1 }) // Most recently updated first
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        // Format the response
+        const pendingRequests = properties.map(property => ({
+            propertyId: property._id,
+            propertyAddress: property.address,
+            ...(req.user.role === "admin" && { ownerId: property.owner }),
+            pendingTenants: property.pendingTenants.map(tenant => ({
+                id: tenant._id,
+                name: tenant.name,
+                email: tenant.email,
+                phone: tenant.phone,
+                requestedAt: tenant.createdAt || tenant.requestedAt
+            })),
+            pendingCount: property.pendingTenants.length
+        }));
+
+        // Return response with pagination metadata
+        return res.status(200).json({
+            success: true,
+            data: pendingRequests,
+            pagination: {
+                currentPage: page,
+                pageSize: limit,
+                totalPages: Math.ceil(totalProperties / limit),
+                totalProperties,
+                hasNextPage: skip + limit < totalProperties,
+                hasPrevPage: page > 1
+            }
+        });
+
+    } catch (err) {
+        console.error("getPendingTenantRequests error:", err);
+        return res.status(500).json({ 
+            success: false, 
+            message: "Internal server error" 
+        });
+    }
+};
+
+
+
+// DELETE /api/properties/:propertyId/tenants/:tenantId
+const removeTenantFromProperty = async (req, res) => {
+    try {
+
+        if (!req.user?.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const { propertyId, tenantId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+            return res.status(400).json({ success: false, message: "Invalid property ID" });
+        }
+        if (!mongoose.Types.ObjectId.isValid(tenantId)) {
+            return res.status(400).json({ success: false, message: "Invalid tenant ID" });
+        }
+
+        const property = await Property.findById(propertyId).select('owner address tenants pendingTenants');
+        if (!property) {
+            return res.status(404).json({ success: false, message: "Property not found" });
+        }
+
+        const requesterId   = req.user.id.toString();
+        const isAdmin       = req.user.role === "admin";
+        const isOwner       = property.owner.toString() === requesterId;
+        const isSelfRemoval = requesterId === tenantId.toString() && req.user.role === "tenant";
+
+        if (!isAdmin && !isOwner && !isSelfRemoval) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not authorized to remove this tenant"
+            });
+        }
+
+        const updated = await Property.findOneAndUpdate(
+            {
+                _id: propertyId,
+                tenants: tenantId
+            },
+            {
+                $pull: {
+                    tenants: tenantId,
+                    pendingTenants: tenantId
+                }
+            },
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(400).json({
+                success: false,
+                message: "User is not a tenant of this property"
+            });
+        }
+
+        const removedAt = new Date().toISOString();
+
+        const removalMessage = isSelfRemoval
+            ? `You have been removed from ${updated.address} by your own request.`
+            : isOwner
+                ? `You have been removed from ${updated.address} by the property owner.`
+                : isAdmin
+                    ? `You have been removed from ${updated.address} by an administrator.`
+                    : `You have been removed from ${updated.address}.`; // unreachable, but safe
+
+        // Fire-and-forget — intentionally not awaited.
+        Notification.create({
+            recipient:       tenantId,
+            type:            "TENANT_REMOVED",
+            title:           "Removed from Property",
+            message:         removalMessage,
+            relatedProperty: propertyId,
+            relatedUser:     requesterId,
+            status:          "unread"
+        }).catch(err =>
+            console.error(JSON.stringify({
+                event:      "NOTIFICATION_FAILED",
+                type:       "TENANT_REMOVED",
+                actorId:    requesterId,
+                tenantId,
+                propertyId,
+                error:      err.message
+            }))
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Tenant removed successfully",
+            data: {
+                tenantId,
+                propertyId,
+                totalTenants: updated.tenants.length,
+                removedBy: {
+                    id:   requesterId,
+                    role: req.user.role,
+                    type: isSelfRemoval ? "SELF" : isOwner ? "LANDLORD" : "ADMIN"
+                },
+                removedAt
+            }
+        });
+
+    } catch (err) {
+        console.error("removeTenantFromProperty error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+
+// GET /api/properties/:propertyId/tenants
+const getTenantsOfProperty = async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const { propertyId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+            return res.status(400).json({ success: false, message: "Invalid property ID" });
+        }
+
+        const property = await Property.findById(propertyId)
+            .populate("tenants", "firstname lastname email phoneNumber profilePicture")
+            .lean();
+
+        if (!property) {
+            return res.status(404).json({ success: false, message: "Property not found" });
+        }
+
+        const isAdmin = req.user.role === "admin";
+        const isOwner = property.owner.toString() === req.user.id.toString();
+
+        const isTenant = property.tenants.some(
+            t => (t._id ?? t).toString() === req.user.id.toString()
+        );
+
+        if (!isAdmin && !isOwner && !isTenant) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not authorized to view tenants of this property"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Tenants retrieved successfully",
+            data: {
+                count: property.tenants.length,
+                tenants: property.tenants,
+            },
+        });
+
+    } catch (err) {
+        console.error("getTenantsOfProperty error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
 
 module.exports = {
     createProperty,
@@ -432,5 +999,8 @@ module.exports = {
     getPropertyById,
     addTenantToProperty,
     removeTenantFromProperty,
-    getTenantsOfProperty
+    getTenantsOfProperty,
+    acceptTenantRequest,
+    rejectTenantRequest,
+    getPendingTenantRequests
 };

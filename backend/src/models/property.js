@@ -13,7 +13,7 @@ const PropertySchema = new Schema({
     propertyType : {
         type : String,
         required: true,
-        enum : ["gym","house","villa","swimmingpool","commercial"]
+        enum : ["gym","house","villa","swimmingpool","commercial","other"]
     },
     propertyAddress : {
         type : String,
