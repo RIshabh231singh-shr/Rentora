@@ -3,6 +3,18 @@ const validateUser = require("../utilities/validatorUser");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const redisClient = require("../config/redis");
+const { OAuth2Client } = require("google-auth-library");
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+async function verifyGoogleToken(token) {
+    const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    return ticket.getPayload();
+}
+
 
 
 const registerUser = async (req, res) => {
@@ -281,4 +293,171 @@ const getProfile = async (req,res) => {
     }
 }
 
-module.exports = {registerUser,loginUser,logoutUser,refreshAccessToken,getProfile};
+const googleLogin = async (req, res) => {
+    try {
+        const { credential } = req.body;
+        if (!credential) {
+            return res.status(400).json({ message: "Google credential is required" });
+        }
+
+        const payload = await verifyGoogleToken(credential);
+        const { sub: googleId, email, given_name: firstname, family_name: lastname, picture: profilePicture } = payload;
+
+        let user = await User.findOne({ $or: [{ googleId }, { email }] });
+
+        if (user) {
+            if (!user.googleId) {
+                user.googleId = googleId;
+                if (profilePicture && !user.profilePicture) {
+                    user.profilePicture = profilePicture;
+                }
+                await user.save();
+            }
+
+            const jwtPayload = {
+                id: user._id,
+                email: user.email,
+                role: user.role,
+            };
+
+            const accessToken = jwt.sign(jwtPayload, process.env.JWT_ACCESS_SECRET, { expiresIn: "15m" });
+            const refreshToken = jwt.sign(jwtPayload, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" });
+
+            res.cookie("accessToken", accessToken, {
+                httpOnly: true,
+                secure: true,
+                sameSite: "none",
+                maxAge: 15 * 60 * 1000,
+            });
+
+            res.cookie("refreshToken", refreshToken, {
+                httpOnly: true,
+                secure: true,
+                sameSite: "none",
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+                path: "/auth",
+            });
+
+            const userData = {
+                id: user._id,
+                firstname: user.firstname,
+                lastname: user.lastname,
+                email: user.email,
+                phoneNumber: user.phoneNumber,
+                role: user.role,
+                isVerified: user.isVerified,
+                profilePicture: user.profilePicture || null,
+            };
+
+            return res.status(200).json({
+                userData,
+                message: "User logged in successfully with Google",
+            });
+        } else {
+            return res.status(200).json({
+                isNewGoogleUser: true,
+                googleData: {
+                    googleId,
+                    email,
+                    firstname,
+                    lastname,
+                    profilePicture,
+                },
+                message: "Registration required to complete Google sign-in",
+            });
+        }
+    } catch (err) {
+        console.error("Google login error:", err);
+        return res.status(400).json({ message: err.message || "Google authentication failed" });
+    }
+};
+
+const googleRegister = async (req, res) => {
+    try {
+        const { credential, phoneNumber, role } = req.body;
+        if (!credential || !phoneNumber || !role) {
+            return res.status(400).json({ message: "Google credential, phone number, and role are required" });
+        }
+
+        if (!["tenant", "landlord", "admin"].includes(role)) {
+            return res.status(400).json({ message: "Invalid role selected" });
+        }
+
+        const validator = require("validator");
+        if (!validator.isMobilePhone(phoneNumber, "en-IN") || phoneNumber.length !== 10) {
+            return res.status(400).json({ message: "Invalid 10-digit Indian phone number" });
+        }
+
+        const payload = await verifyGoogleToken(credential);
+        const { sub: googleId, email, given_name: firstname, family_name: lastname, picture: profilePicture } = payload;
+
+        let user = await User.findOne({ $or: [{ googleId }, { email }] });
+        if (user) {
+            return res.status(400).json({ message: "User already exists. Please login instead." });
+        }
+
+        user = await User.create({
+            firstname,
+            lastname,
+            email,
+            phoneNumber,
+            role,
+            googleId,
+            profilePicture,
+            isVerified: true,
+        });
+
+        const jwtPayload = {
+            id: user._id,
+            email: user.email,
+            role: user.role,
+        };
+
+        const accessToken = jwt.sign(jwtPayload, process.env.JWT_ACCESS_SECRET, { expiresIn: "15m" });
+        const refreshToken = jwt.sign(jwtPayload, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" });
+
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+            maxAge: 15 * 60 * 1000,
+        });
+
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: "/auth",
+        });
+
+        const userData = {
+            id: user._id,
+            firstname: user.firstname,
+            lastname: user.lastname,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            role: user.role,
+            isVerified: user.isVerified,
+            profilePicture: user.profilePicture || null,
+        };
+
+        return res.status(201).json({
+            userData,
+            message: "User registered and logged in successfully with Google",
+        });
+    } catch (err) {
+        console.error("Google registration error:", err);
+        return res.status(400).json({ message: err.message || "Google registration failed" });
+    }
+};
+
+module.exports = {
+    registerUser,
+    loginUser,
+    logoutUser,
+    refreshAccessToken,
+    getProfile,
+    googleLogin,
+    googleRegister
+};
