@@ -7,6 +7,8 @@ const main = require("./config/db");
 const redisClient = require("./config/redis");
 const authRoutes = require("./routes/auth");
 const propertyRoutes = require("./routes/properties");
+const amenityRoutes = require("./routes/amenities");
+const bookingRoutes = require("./routes/bookings");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -21,8 +23,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Routes
-app.use("/auth", authRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/properties", propertyRoutes);
+app.use("/api/amenities", amenityRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 const initializeConnection = async () => {
     try {

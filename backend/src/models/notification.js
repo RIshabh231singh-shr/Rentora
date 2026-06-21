@@ -18,6 +18,12 @@ const NotificationSchema = new Schema(
         "TENANT_REQUEST_ACCEPTED",
         "TENANT_REQUEST_REJECTED",
         "TENANT_REMOVED",
+        "BOOKING_CONFIRMED",
+        "BOOKING_CANCELLED",
+        "BOOKING_REMINDER",
+        "MAINTENANCE_CREATED",
+        "MAINTENANCE_STATUS_CHANGED",
+        "MAINTENANCE_RESOLVED",
       ],
     },
     title: {

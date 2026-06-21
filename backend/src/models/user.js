@@ -31,8 +31,14 @@ const UserSchema = new Schema(
     },
     password: {
       type: String,
-      required: true,
-      minlength: 6,
+      required: function() {
+        return !this.googleId;
+      },
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
     role: {
       type: String,
@@ -42,7 +48,6 @@ const UserSchema = new Schema(
     phoneNumber: {
       type: String,
       trim: true,
-      unique : true,
       required: true,
       match: [/^\+?[0-9\s\-()]+$/, "Please fill a valid phone number"],
     },
