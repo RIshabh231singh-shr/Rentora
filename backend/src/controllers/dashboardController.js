@@ -48,6 +48,7 @@ const getDashboardData = async (req, res) => {
                 status: { $ne: "cancelled" }
             })
                 .populate("amenity", "name category pricePerHour")
+                .populate("property", "propertyName propertyAddress city state pricePerHour rentType")
                 .sort({ bookingStartTime: 1 })
                 .limit(5);
 
@@ -62,6 +63,11 @@ const getDashboardData = async (req, res) => {
             if (currentBooking && currentBooking.amenity) {
                 currentBookingName = currentBooking.amenity.name;
             }
+
+            // Rented monthly properties where they are a tenant
+            var rentedProperties = await Property.find({
+                tenants: userId
+            }).populate("owner", "firstname lastname email phoneNumber").lean();
         } else if (req.user.role === "landlord") {
             const landlordProperties = await Property.find({ owner: req.user._id }).select("_id");
             const propertyIds = landlordProperties.map(p => p._id);
@@ -80,6 +86,23 @@ const getDashboardData = async (req, res) => {
             recentRequests = await MaintenanceRequest.find({ property: { $in: propertyIds } })
                 .sort({ createdAt: -1 })
                 .limit(3);
+
+            var pendingBookings = await Booking.find({
+                property: { $in: propertyIds },
+                status: "pending"
+            })
+                .populate("user", "firstname lastname email")
+                .populate("property", "propertyName propertyAddress")
+                .populate("amenity", "name")
+                .sort({ createdAt: -1 })
+                .lean();
+
+            var pendingLeases = await Property.find({
+                owner: req.user._id,
+                pendingTenants: { $exists: true, $not: { $size: 0 } }
+            })
+                .populate("pendingTenants", "firstname lastname email")
+                .lean();
         } else if (req.user.role === "admin") {
             // Active requests: pending, assigned, in_progress
             activeRequestsCount = await MaintenanceRequest.countDocuments({
@@ -103,7 +126,10 @@ const getDashboardData = async (req, res) => {
                 currentBooking: currentBookingName
             },
             recentRequests,
-            upcomingBookingsList
+            upcomingBookingsList,
+            rentedProperties: typeof rentedProperties !== "undefined" ? rentedProperties : [],
+            pendingBookings: typeof pendingBookings !== "undefined" ? pendingBookings : [],
+            pendingLeases: typeof pendingLeases !== "undefined" ? pendingLeases : []
         });
     } catch (err) {
         console.error("getDashboardData error:", err);

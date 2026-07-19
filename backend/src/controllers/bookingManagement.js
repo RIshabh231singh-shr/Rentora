@@ -122,7 +122,7 @@ const bookAmenity = async (req, res) => {
             amenity: amenityId,
             bookingStartTime: start,
             bookingEndTime: end,
-            status: "booked",
+            status: "pending",
             paymentStatus: "pending",
             totalAmount: 0,
         });
@@ -619,7 +619,7 @@ const bookProperty = async (req, res) => {
             bookingEndTime: end,
             totalAmount,
             paymentStatus: "pending",
-            status: "booked"
+            status: "pending"
         });
 
         // Fire notification
@@ -713,6 +713,100 @@ const getPropertySlotAvailability = async (req, res) => {
 };
 
 
+// Approve a pending booking
+const approveBooking = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+            return res.status(400).json({ success: false, message: "Invalid booking ID" });
+        }
+
+        const booking = await Booking.findById(bookingId).populate("property");
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking not found" });
+        }
+
+        // Verify request owner is the landlord
+        if (booking.property.owner.toString() !== req.user.id) {
+            return res.status(403).json({ success: false, message: "Unauthorized to approve bookings for this property" });
+        }
+
+        booking.status = "booked";
+        await booking.save();
+
+        // Notify tenant
+        Notification.create({
+            recipient: booking.user,
+            type: "BOOKING_CONFIRMED",
+            title: "Booking Approved",
+            message: `Your booking for ${booking.property.propertyName} has been approved by the host!`,
+            relatedProperty: booking.property._id,
+            status: "unread"
+        }).catch(err => console.error("Notification failed:", err));
+
+        if (global.io) {
+            global.io.to(booking.user.toString()).emit("notification", {
+                type: "BOOKING_CONFIRMED",
+                title: "Booking Approved",
+                message: `Your booking for ${booking.property.propertyName} has been approved by the host!`
+            });
+        }
+
+        return res.status(200).json({ success: true, message: "Booking approved successfully" });
+    } catch (err) {
+        console.error("approveBooking error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+
+// Reject a pending booking
+const rejectBooking = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+            return res.status(400).json({ success: false, message: "Invalid booking ID" });
+        }
+
+        const booking = await Booking.findById(bookingId).populate("property");
+        if (!booking) {
+            return res.status(404).json({ success: false, message: "Booking not found" });
+        }
+
+        // Verify request owner is the landlord
+        if (booking.property.owner.toString() !== req.user.id) {
+            return res.status(403).json({ success: false, message: "Unauthorized to reject bookings for this property" });
+        }
+
+        booking.status = "cancelled";
+        await booking.save();
+
+        // Notify tenant
+        Notification.create({
+            recipient: booking.user,
+            type: "BOOKING_REJECTED",
+            title: "Booking Declined",
+            message: `Your booking for ${booking.property.propertyName} has been declined.`,
+            relatedProperty: booking.property._id,
+            status: "unread"
+        }).catch(err => console.error("Notification failed:", err));
+
+        if (global.io) {
+            global.io.to(booking.user.toString()).emit("notification", {
+                type: "BOOKING_REJECTED",
+                title: "Booking Declined",
+                message: `Your booking for ${booking.property.propertyName} has been declined.`
+            });
+        }
+
+        return res.status(200).json({ success: true, message: "Booking rejected successfully" });
+    } catch (err) {
+        console.error("rejectBooking error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+
 module.exports = {
     bookAmenity,
     getBookingsForAmenity,
@@ -724,4 +818,6 @@ module.exports = {
     getSlotAvailability,
     bookProperty,
     getPropertySlotAvailability,
+    approveBooking,
+    rejectBooking,
 };

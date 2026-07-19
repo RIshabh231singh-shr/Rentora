@@ -14,8 +14,10 @@ import {
   Wrench,
   Zap,
   Search,
+  MapPin,
+  Send,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
+import { Card, CardContent, CardHeader, CardTitle, Button } from "../components/ui";
 import api from "../utility/axiosInstance";
 import { io } from "socket.io-client";
 
@@ -31,7 +33,115 @@ export default function Dashboard() {
   });
   const [recentRequests, setRecentRequests] = useState([]);
   const [upcomingBookingsList, setUpcomingBookingsList] = useState([]);
+  const [rentedProperties, setRentedProperties] = useState([]);
+  const [pendingBookings, setPendingBookings] = useState([]);
+  const [pendingLeases, setPendingLeases] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Landlord action handlers
+  const handleApproveBooking = async (bookingId) => {
+    try {
+      await api.put(`/bookings/${bookingId}/approve`);
+      const response = await api.get("/dashboard");
+      if (response.data) {
+        setPendingBookings(response.data.pendingBookings || []);
+      }
+    } catch (err) {
+      console.error("Error approving booking:", err);
+    }
+  };
+
+  const handleRejectBooking = async (bookingId) => {
+    try {
+      await api.put(`/bookings/${bookingId}/reject`);
+      const response = await api.get("/dashboard");
+      if (response.data) {
+        setPendingBookings(response.data.pendingBookings || []);
+      }
+    } catch (err) {
+      console.error("Error rejecting booking:", err);
+    }
+  };
+
+  const handleApproveLease = async (propertyId, tenantId) => {
+    try {
+      await api.post(`/properties/${propertyId}/tenants/${tenantId}/accept`);
+      const response = await api.get("/dashboard");
+      if (response.data) {
+        setPendingLeases(response.data.pendingLeases || []);
+      }
+    } catch (err) {
+      console.error("Error approving lease:", err);
+    }
+  };
+
+  const handleRejectLease = async (propertyId, tenantId) => {
+    try {
+      await api.post(`/properties/${propertyId}/tenants/${tenantId}/reject`);
+      const response = await api.get("/dashboard");
+      if (response.data) {
+        setPendingLeases(response.data.pendingLeases || []);
+      }
+    } catch (err) {
+      console.error("Error rejecting lease:", err);
+    }
+  };
+
+  // Maintenance request state from dashboard bookings list
+
+  // Maintenance request state from dashboard bookings list
+  const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
+  const [targetPropertyId, setTargetPropertyId] = useState("");
+  const [maintenanceTitle, setMaintenanceTitle] = useState("");
+  const [maintenanceDescription, setMaintenanceDescription] = useState("");
+  const [maintenanceCategory, setMaintenanceCategory] = useState("plumbing");
+  const [maintenanceSubmitting, setMaintenanceSubmitting] = useState(false);
+  const [maintenanceError, setMaintenanceError] = useState("");
+  const [maintenanceSuccess, setMaintenanceSuccess] = useState("");
+
+  const handleOpenMaintenanceModal = (propertyId) => {
+    setTargetPropertyId(propertyId);
+    setMaintenanceTitle("");
+    setMaintenanceDescription("");
+    setMaintenanceCategory("plumbing");
+    setMaintenanceError("");
+    setMaintenanceSuccess("");
+    setIsMaintenanceModalOpen(true);
+  };
+
+  const handleSubmitMaintenanceRequest = async (e) => {
+    e.preventDefault();
+    setMaintenanceError("");
+    setMaintenanceSuccess("");
+    setMaintenanceSubmitting(true);
+
+    try {
+      const response = await api.post("/maintenance", {
+        title: maintenanceTitle,
+        description: maintenanceDescription,
+        category: maintenanceCategory,
+        propertyId: targetPropertyId
+      });
+
+      if (response.data) {
+        setMaintenanceSuccess("Maintenance request submitted successfully!");
+        setTimeout(() => {
+          setIsMaintenanceModalOpen(false);
+        }, 1500);
+        
+        // Refresh dashboard data
+        const refreshResponse = await api.get("/dashboard");
+        if (refreshResponse.data) {
+          setRecentRequests(refreshResponse.data.recentRequests || []);
+        }
+      }
+    } catch (err) {
+      console.error("Error submitting maintenance request:", err);
+      setMaintenanceError(err.response?.data?.message || "Failed to submit request.");
+    } finally {
+      setMaintenanceSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -55,6 +165,9 @@ export default function Dashboard() {
           });
           setRecentRequests(response.data.recentRequests || []);
           setUpcomingBookingsList(response.data.upcomingBookingsList || []);
+          setRentedProperties(response.data.rentedProperties || []);
+          setPendingBookings(response.data.pendingBookings || []);
+          setPendingLeases(response.data.pendingLeases || []);
         }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
@@ -310,50 +423,217 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Amenity Bookings Card */}
-            <Card className="shadow-sm p-6 gap-4">
-              <CardHeader className="p-0 flex-row justify-between items-center gap-0">
-                <div className="flex items-center gap-2">
-                  <Zap className="size-4 text-[#2b7fff]" />
-                  <CardTitle className="font-semibold text-blue-900 text-base leading-6">
-                    Upcoming Amenity Bookings
-                  </CardTitle>
+            {/* Conditional Column 2 depending on user role */}
+            {user?.role === "landlord" ? (
+              <Card className="shadow-sm p-6 gap-4 flex flex-col justify-between">
+                <div>
+                  <CardHeader className="p-0 flex-row justify-between items-center gap-0">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="size-4 text-[#2b7fff]" />
+                      <CardTitle className="font-semibold text-blue-900 text-base leading-6">
+                        Booking & Lease Requests
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex p-0 flex-col gap-3 mt-4 overflow-y-auto max-h-[290px] pr-1">
+                    
+                    {/* Lease Requests (Monthly Properties) */}
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Monthly Lease Requests</span>
+                      {pendingLeases.length === 0 ? (
+                        <p className="text-xs text-[#71717b] p-2 bg-slate-50 rounded-lg text-center">No pending lease requests</p>
+                      ) : (
+                        pendingLeases.map((prop) => (
+                          prop.pendingTenants?.map((t) => (
+                            <div key={`${prop._id}-${t._id}`} className="rounded-lg border-zinc-200 border border-solid flex p-3 justify-between items-center bg-white shadow-sm gap-2">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-bold text-zinc-950 text-xs">
+                                  {t.firstname} {t.lastname}
+                                </span>
+                                <span className="text-[#71717b] text-[9px] leading-3">
+                                  wants to rent <strong className="text-blue-900">{prop.propertyName}</strong>
+                                </span>
+                                <span className="text-[#71717b] text-[8px] leading-3 block">
+                                  {t.email}
+                                </span>
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <Button
+                                  onClick={() => handleRejectLease(prop._id, t._id)}
+                                  className="bg-red-50 text-red-600 hover:bg-red-100 text-[9px] font-semibold py-1 px-2.5 rounded-lg border-none cursor-pointer"
+                                >
+                                  Decline
+                                </Button>
+                                <Button
+                                  onClick={() => handleApproveLease(prop._id, t._id)}
+                                  className="bg-green-600 hover:bg-green-700 text-white text-[9px] font-semibold py-1 px-2.5 rounded-lg border-none cursor-pointer"
+                                >
+                                  Approve
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        ))
+                      )}
+                    </div>
+
+                    {/* Booking Requests (Hourly/Amenity Bookings) */}
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Hourly Booking Requests</span>
+                      {pendingBookings.length === 0 ? (
+                        <p className="text-xs text-[#71717b] p-2 bg-slate-50 rounded-lg text-center">No pending hourly requests</p>
+                      ) : (
+                        pendingBookings.map((booking) => {
+                          const start = new Date(booking.bookingStartTime);
+                          const end = new Date(booking.bookingEndTime);
+                          const formattedDate = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                          const startStr = start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+                          const endStr = end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+                          
+                          const isAmenity = !!booking.amenity;
+                          const title = isAmenity ? booking.amenity.name : booking.property?.propertyName || "Property Slot";
+
+                          return (
+                            <div key={booking._id} className="rounded-lg border-zinc-200 border border-solid flex p-3 justify-between items-center bg-white shadow-sm gap-2">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-bold text-zinc-950 text-xs">
+                                  {booking.user?.firstname} {booking.user?.lastname}
+                                </span>
+                                <span className="text-[#71717b] text-[9px] leading-3">
+                                  wants {title} ({formattedDate}, {startStr} – {endStr})
+                                </span>
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <Button
+                                  onClick={() => handleRejectBooking(booking._id)}
+                                  className="bg-red-50 text-red-600 hover:bg-red-100 text-[9px] font-semibold py-1 px-2.5 rounded-lg border-none cursor-pointer"
+                                >
+                                  Decline
+                                </Button>
+                                <Button
+                                  onClick={() => handleApproveBooking(booking._id)}
+                                  className="bg-green-600 hover:bg-green-700 text-white text-[9px] font-semibold py-1 px-2.5 rounded-lg border-none cursor-pointer"
+                                >
+                                  Confirm
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                  </CardContent>
                 </div>
-                <Link to="/amenities" className="font-medium text-[#2b7fff] text-sm leading-5 hover:underline">
-                  View All
-                </Link>
-              </CardHeader>
-              <CardContent className="flex p-0 flex-col gap-2 mt-4">
-                {loading ? (
-                  <p className="text-sm text-[#71717b] p-3 text-center">Loading bookings...</p>
-                ) : upcomingBookingsList.length === 0 ? (
-                  <p className="text-sm text-[#71717b] p-3 text-center">No upcoming bookings found</p>
-                ) : (
-                  upcomingBookingsList.map((booking) => {
-                    const start = new Date(booking.bookingStartTime);
-                    const end = new Date(booking.bookingEndTime);
-                    const formattedDate = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                    const startStr = start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-                    const endStr = end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-                    return (
-                      <div key={booking._id} className="rounded-lg border-zinc-200 border border-solid flex p-3 items-center gap-3 bg-white shadow-sm">
-                        <div className="size-9 rounded-lg bg-[#2b7fff]/10 flex justify-center items-center">
-                          <Calendar className="size-4 text-[#2b7fff]" />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-medium text-zinc-950 text-sm leading-5">
-                            {booking.amenity?.name || "Amenity"}
-                          </span>
-                          <span className="text-[#71717b] text-xs leading-4">
-                            {formattedDate}, {startStr} – {endStr}
-                          </span>
-                        </div>
+              </Card>
+            ) : (
+              <Card className="shadow-sm p-6 gap-4 flex flex-col justify-between">
+                <div>
+                  <CardHeader className="p-0 flex-row justify-between items-center gap-0">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="size-4 text-[#2b7fff]" />
+                      <CardTitle className="font-semibold text-blue-900 text-base leading-6">
+                        My Bookings & Rentals
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex p-0 flex-col gap-3 mt-4 overflow-y-auto max-h-[290px] pr-1">
+                    
+                    {/* Monthly Leases */}
+                    {rentedProperties.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Active Monthly Leases</span>
+                        {rentedProperties.map((prop) => (
+                          <div key={prop._id} className="rounded-lg border-zinc-200 border border-solid flex p-3 justify-between items-center bg-white shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <div className="size-9 rounded-lg bg-[#2b7fff]/10 flex justify-center items-center">
+                                <Building2 className="size-4 text-[#2b7fff]" />
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-bold text-zinc-950 text-xs">
+                                  {prop.propertyName}
+                                </span>
+                                <span className="text-[#71717b] text-[10px] flex items-center gap-1">
+                                  <MapPin className="size-2.5" /> {prop.city || "Address Listed"}
+                                </span>
+                              </div>
+                            </div>
+                            <Button
+                              onClick={() => handleOpenMaintenanceModal(prop._id)}
+                              className="bg-[#2b7fff] hover:bg-[#1a66d9] text-white text-[10px] font-semibold py-1.5 px-3 rounded-lg border-none cursor-pointer"
+                            >
+                              Raise Request
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })
-                )}
-              </CardContent>
-            </Card>
+                    )}
+
+                    {/* Hourly & Amenity Bookings */}
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Hourly Rentals & Amenities</span>
+                      {loading ? (
+                        <p className="text-xs text-[#71717b] p-3 text-center">Loading bookings...</p>
+                      ) : upcomingBookingsList.length === 0 && rentedProperties.length === 0 ? (
+                        <p className="text-xs text-[#71717b] p-3 text-center">No active bookings found</p>
+                      ) : upcomingBookingsList.length === 0 ? (
+                        <p className="text-xs text-[#71717b] p-3 text-center">No hourly bookings found</p>
+                      ) : (
+                        upcomingBookingsList.map((booking) => {
+                          const start = new Date(booking.bookingStartTime);
+                          const end = new Date(booking.bookingEndTime);
+                          const formattedDate = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                          const startStr = start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+                          const endStr = end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+                          
+                          const isAmenity = !!booking.amenity;
+                          const title = isAmenity ? booking.amenity.name : booking.property?.propertyName || "Property Rental";
+                          const subTitle = isAmenity 
+                            ? `Amenity booking at ${booking.property?.propertyName || "Property"}`
+                            : `Hourly property rental at ${booking.property?.propertyAddress || "Address"}`;
+
+                          const statusBadgeClass = booking.status === "pending"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-green-100 text-green-700";
+
+                          return (
+                            <div key={booking._id} className="rounded-lg border-zinc-200 border border-solid flex p-3 justify-between items-center bg-white shadow-sm">
+                              <div className="flex items-center gap-3">
+                                <div className="size-9 rounded-lg bg-[#2b7fff]/10 flex justify-center items-center">
+                                  {isAmenity ? <Zap className="size-4 text-[#2b7fff]" /> : <Building2 className="size-4 text-[#2b7fff]" />}
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-bold text-zinc-950 text-xs">
+                                    {title}
+                                  </span>
+                                  <span className="text-[#71717b] text-[9px] leading-3 block max-w-[150px] truncate">
+                                    {subTitle}
+                                  </span>
+                                  <span className="text-[#71717b] text-[9px] font-semibold leading-3 block">
+                                    {formattedDate}, {startStr} – {endStr}
+                                  </span>
+                                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 self-start capitalize ${statusBadgeClass}`}>
+                                    {booking.status}
+                                  </span>
+                                </div>
+                              </div>
+                              {booking.status === "booked" && booking.property?._id && (
+                                <Button
+                                  onClick={() => handleOpenMaintenanceModal(booking.property._id)}
+                                  className="bg-[#2b7fff] hover:bg-[#1a66d9] text-white text-[10px] font-semibold py-1.5 px-3 rounded-lg border-none cursor-pointer animate-in fade-in"
+                                >
+                                  Raise Request
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </CardContent>
+                </div>
+              </Card>
+            )}
           </div>
 
           {/* Footer Notice */}
@@ -391,6 +671,85 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+      {/* Raise Maintenance Request Modal */}
+      {isMaintenanceModalOpen && (
+        <div className="fixed inset-0 bg-black/55 z-55 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl flex flex-col gap-4 border border-zinc-200 border-solid animate-in fade-in duration-200">
+            <div className="flex justify-between items-center border-b border-zinc-100 pb-3">
+              <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
+                <Wrench className="size-5 text-[#2b7fff]" />
+                Raise Maintenance Request
+              </h2>
+              <button
+                onClick={() => setIsMaintenanceModalOpen(false)}
+                className="text-zinc-400 hover:text-zinc-600 border-none bg-transparent cursor-pointer text-2xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitMaintenanceRequest} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-semibold text-zinc-700">Request Title</label>
+                <Input
+                  required
+                  value={maintenanceTitle}
+                  onChange={(e) => setMaintenanceTitle(e.target.value)}
+                  placeholder="e.g. Living Room Fan Sparks"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-semibold text-zinc-700">Problem Category</label>
+                <select
+                  className="w-full h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                  value={maintenanceCategory}
+                  onChange={(e) => setMaintenanceCategory(e.target.value)}
+                >
+                  <option value="plumbing">Plumbing</option>
+                  <option value="electrical">Electrical</option>
+                  <option value="cleaning">Cleaning</option>
+                  <option value="others">Others</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-semibold text-zinc-700">Describe the Issue</label>
+                <textarea
+                  required
+                  rows={3}
+                  className="w-full p-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-sans text-sm"
+                  value={maintenanceDescription}
+                  onChange={(e) => setMaintenanceDescription(e.target.value)}
+                  placeholder="Include details about exactly what is broken..."
+                />
+              </div>
+
+              {maintenanceError && <p className="text-red-600 text-xs">{maintenanceError}</p>}
+              {maintenanceSuccess && <p className="text-green-600 text-xs font-semibold">{maintenanceSuccess}</p>}
+
+              <div className="flex justify-end gap-2 border-t border-zinc-100 pt-3 mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border border-solid border-zinc-200 cursor-pointer text-zinc-700"
+                  onClick={() => setIsMaintenanceModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={maintenanceSubmitting}
+                  className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 cursor-pointer border-none gap-2"
+                >
+                  <Send className="size-4" />
+                  <span>{maintenanceSubmitting ? "Submitting..." : "Submit Request"}</span>
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
