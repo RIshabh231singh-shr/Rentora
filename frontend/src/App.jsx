@@ -6,6 +6,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Maintenance from "./pages/Maintenance";
 import Amenities from "./pages/Amenities";
+import Properties from "./pages/Properties";
 import api from "./utility/axiosInstance";
 
 function LandingScreen() {
@@ -111,6 +112,15 @@ function Profile() {
                 <LayoutDashboard className="size-4" />
                 <span>Dashboard</span>
               </Link>
+              {(user?.role === "landlord" || user?.role === "admin") && (
+                <Link
+                  to="/properties"
+                  className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
+                >
+                  <Building2 className="size-4" />
+                  <span>My Properties</span>
+                </Link>
+              )}
               <Link
                 to="/maintenance"
                 className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
@@ -212,6 +222,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/properties" element={<Properties />} />
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/amenities" element={<Amenities />} />
         <Route path="/profile" element={<Profile />} />
