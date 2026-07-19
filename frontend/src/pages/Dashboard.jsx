@@ -17,10 +17,12 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
 import api from "../utility/axiosInstance";
+import { io } from "socket.io-client";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const [toasts, setToasts] = useState([]);
   const [stats, setStats] = useState({
     activeRequests: 0,
     completedRequests: 0,
@@ -66,6 +68,31 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const socket = io("http://localhost:5000");
+    socket.emit("register", user.id);
+
+    socket.on("notification", (data) => {
+      console.log("WebSocket Notification received:", data);
+      const newToast = {
+        id: Date.now(),
+        title: data.title || "Booking Alert",
+        message: data.message || "A new request has been submitted."
+      };
+      setToasts((prev) => [...prev, newToast]);
+
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== newToast.id));
+      }, 6000);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
+
   const handleLogout = async () => {
     try {
       await api.post("/auth/logout");
@@ -78,11 +105,11 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="bg-white text-zinc-950 w-full min-h-screen flex overflow-visible font-sans">
-      <div className="flex w-full min-h-screen">
+    <div className="bg-white text-zinc-950 w-full h-screen flex overflow-hidden font-sans">
+      <div className="flex w-full h-screen">
         
         {/* Sidebar */}
-        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 min-h-screen">
+        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 h-screen">
           <div className="flex flex-col gap-8">
             <div className="flex px-2 items-center gap-2">
               <div className="size-9 rounded-xl bg-[#2b7fff] flex justify-center items-center">
@@ -149,7 +176,7 @@ export default function Dashboard() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="overflow-y-auto bg-[#F0F4FF] flex p-8 flex-col flex-1 gap-6 min-h-screen">
+        <main className="overflow-y-auto bg-[#F0F4FF] flex p-8 flex-col flex-1 gap-6 h-screen">
           <div className="flex justify-between items-center">
             <div className="flex flex-col gap-1">
               <h1 className="font-bold text-blue-900 text-2xl leading-8">
@@ -340,6 +367,29 @@ export default function Dashboard() {
             </p>
           </div>
         </main>
+      </div>
+      {/* Real-time Toast Notifications */}
+      <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className="pointer-events-auto bg-blue-900 text-white p-4 rounded-xl shadow-2xl flex flex-col gap-1 border border-blue-800 animate-in slide-in-from-right duration-200"
+          >
+            <div className="flex justify-between items-start">
+              <span className="font-bold text-sm flex items-center gap-1.5 capitalize">
+                <Bell className="size-4 text-[#2b7fff]" />
+                {toast.title}
+              </span>
+              <button
+                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+                className="text-white/60 hover:text-white border-none bg-transparent cursor-pointer font-bold text-xs"
+              >
+                &times;
+              </button>
+            </div>
+            <p className="text-xs text-blue-100/90 leading-4">{toast.message}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
