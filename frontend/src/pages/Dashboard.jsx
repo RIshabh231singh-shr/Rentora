@@ -13,6 +13,7 @@ import {
   Settings,
   Wrench,
   Zap,
+  Search,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
 import api from "../utility/axiosInstance";
@@ -108,6 +109,13 @@ export default function Dashboard() {
                   Properties
                 </Link>
               )}
+              <Link
+                to="/explore"
+                className="font-medium rounded-full text-blue-100/80 hover:text-white text-sm leading-5 flex px-4 py-2.5 items-center gap-2 transition-colors"
+              >
+                <Search className="size-4" />
+                Find Properties
+              </Link>
               <Link
                 to="/maintenance"
                 className="font-medium rounded-full text-blue-100/80 hover:text-white text-sm leading-5 flex px-4 py-2.5 items-center gap-2 transition-colors"
