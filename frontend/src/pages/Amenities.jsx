@@ -96,14 +96,41 @@ export default function Amenities() {
   const fetchMyBookings = async () => {
     try {
       setBookingsLoading(true);
-      const response = await api.get("/amenities/bookings");
+      const response = await api.get("/bookings/my");
       if (response.data) {
-        setMyBookings(response.data);
+        // Only amenity bookings
+        setMyBookings(response.data.filter(b => b.amenity));
       }
     } catch (err) {
       console.error("Error fetching user bookings:", err);
     } finally {
       setBookingsLoading(false);
+    }
+  };
+
+  const [checkingId, setCheckingId] = useState(null);
+
+  const handleCheckIn = async (bookingId) => {
+    try {
+      setCheckingId(bookingId);
+      await api.post(`/bookings/${bookingId}/checkin`);
+      await fetchMyBookings();
+    } catch (err) {
+      console.error("Check-in failed:", err.response?.data?.message || err.message);
+    } finally {
+      setCheckingId(null);
+    }
+  };
+
+  const handleCheckOut = async (bookingId) => {
+    try {
+      setCheckingId(bookingId);
+      await api.post(`/bookings/${bookingId}/checkout`);
+      await fetchMyBookings();
+    } catch (err) {
+      console.error("Check-out failed:", err.response?.data?.message || err.message);
+    } finally {
+      setCheckingId(null);
     }
   };
 
@@ -581,32 +608,63 @@ export default function Amenities() {
                   const startStr = start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
                   const endStr = end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
                   
+                  const now = new Date();
+                  const isCheckinEligible = b.status === "booked" && now >= start && now <= end;
+                  const isCheckedIn = b.status === "checked_in";
+                  const isCheckoutEligible = isCheckedIn;
+
                   return (
-                    <div key={b._id} className="rounded-xl border border-solid border-zinc-200 p-4 flex justify-between items-center bg-zinc-50">
-                      <div className="flex flex-col gap-1">
-                        <span className="font-semibold text-zinc-950 text-sm leading-5">
-                          {b.amenity?.name || "Amenity"}
-                        </span>
-                        <span className="text-[#71717b] text-xs leading-4">
-                          {formattedDate}
-                        </span>
-                        <span className="text-[#71717b] text-xs leading-4 font-medium flex items-center gap-1">
-                          <Clock className="size-3 text-[#2b7fff]" />
-                          {startStr} – {endStr}
-                        </span>
+                    <div key={b._id} className="rounded-xl border border-solid border-zinc-200 p-4 flex flex-col gap-3 bg-zinc-50">
+                      <div className="flex justify-between items-start">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold text-zinc-950 text-sm leading-5">
+                            {b.amenity?.name || "Amenity"}
+                          </span>
+                          <span className="text-[#71717b] text-xs leading-4">
+                            {formattedDate}
+                          </span>
+                          <span className="text-[#71717b] text-xs leading-4 font-medium flex items-center gap-1">
+                            <Clock className="size-3 text-[#2b7fff]" />
+                            {startStr} – {endStr}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`font-semibold text-xs leading-4 px-2 py-0.5 rounded-md ${
+                            b.status === "booked" ? "bg-blue-50 text-blue-700 border border-blue-200 border-solid" :
+                            b.status === "checked_in" ? "bg-amber-50 text-amber-700 border border-amber-200 border-solid" :
+                            b.status === "completed" ? "bg-green-50 text-green-700 border border-green-200 border-solid" :
+                            "bg-red-50 text-red-700 border border-red-200 border-solid"
+                          }`}>
+                            {b.status === "checked_in" ? "CHECKED IN" : b.status.toUpperCase()}
+                          </span>
+                          <span className="text-xs text-zinc-500 font-medium">
+                            {b.paymentStatus === "paid" ? "Paid" : "Free"}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`font-semibold text-xs leading-4 px-2 py-0.5 rounded-md ${
-                          b.status === "booked" ? "bg-blue-50 text-blue-700 border border-blue-200" :
-                          b.status === "completed" ? "bg-green-50 text-green-700 border border-green-200" :
-                          "bg-red-50 text-red-700 border border-red-200"
-                        }`}>
-                          {b.status.toUpperCase()}
-                        </span>
-                        <span className="text-xs text-zinc-500 font-medium">
-                          {b.paymentStatus === "paid" ? "Paid" : "Free"}
-                        </span>
-                      </div>
+                      {/* Check In / Check Out actions */}
+                      {(isCheckinEligible || isCheckoutEligible) && (
+                        <div className="flex gap-2 pt-1 border-t border-zinc-100 border-solid">
+                          {isCheckinEligible && (
+                            <button
+                              disabled={checkingId === b._id}
+                              onClick={() => handleCheckIn(b._id)}
+                              className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-[#2b7fff] text-white border-none cursor-pointer hover:bg-[#1a66d9] transition-colors disabled:opacity-50"
+                            >
+                              {checkingId === b._id ? "..." : "✓ Check In"}
+                            </button>
+                          )}
+                          {isCheckoutEligible && (
+                            <button
+                              disabled={checkingId === b._id}
+                              onClick={() => handleCheckOut(b._id)}
+                              className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-emerald-600 text-white border-none cursor-pointer hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                            >
+                              {checkingId === b._id ? "..." : "→ Check Out"}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })
