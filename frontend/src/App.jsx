@@ -1,12 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { LogOut, User, Mail, Shield, Phone, Building2, LayoutDashboard, Wrench, Zap } from "lucide-react";
+import { LogOut, User, Mail, Shield, Phone, Building2, LayoutDashboard, Wrench, Zap, Search } from "lucide-react";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Maintenance from "./pages/Maintenance";
 import Amenities from "./pages/Amenities";
 import Properties from "./pages/Properties";
+import FindProperties from "./pages/FindProperties";
 import api from "./utility/axiosInstance";
 
 function LandingScreen() {
@@ -122,6 +123,13 @@ function Profile() {
                 </Link>
               )}
               <Link
+                to="/explore"
+                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
+              >
+                <Search className="size-4" />
+                <span>Find Properties</span>
+              </Link>
+              <Link
                 to="/maintenance"
                 className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
               >
@@ -223,6 +231,7 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/properties" element={<Properties />} />
+        <Route path="/explore" element={<FindProperties />} />
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/amenities" element={<Amenities />} />
         <Route path="/profile" element={<Profile />} />
