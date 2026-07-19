@@ -125,15 +125,15 @@ export default function VerifyEmail() {
   return (
     <div className="bg-zinc-50 w-screen h-screen flex flex-col justify-center items-center p-4 font-sans relative overflow-hidden">
       {/* Background decorations */}
-      <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3 w-96 h-96 bg-blue-100/50 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 translate-y-1/3 -translate-x-1/3 w-96 h-96 bg-teal-50/50 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3 w-96 h-96 bg-blue-100/50 rounded-full blur-3xl pointer-events-none animate-pulse duration-1000"></div>
+      <div className="absolute bottom-0 left-0 translate-y-1/3 -translate-x-1/3 w-96 h-96 bg-teal-50/50 rounded-full blur-3xl pointer-events-none animate-pulse duration-[3000ms]"></div>
 
-      <div className="max-w-md w-full bg-white/70 backdrop-blur-xl border border-white rounded-3xl p-8 sm:p-10 flex flex-col gap-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 relative overflow-hidden">
+      <div className="max-w-md w-full bg-white/70 backdrop-blur-xl border border-white rounded-3xl p-8 sm:p-10 flex flex-col gap-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10 relative overflow-hidden transition-all duration-500">
         
         {/* Header */}
-        <div className="flex flex-col items-center text-center gap-3">
-          <div className="size-16 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center mb-2 shadow-inner">
-            <Mail className="size-7 text-blue-600" />
+        <div className="flex flex-col items-center text-center gap-3 animate-in slide-in-from-bottom-4 fade-in duration-500">
+          <div className="size-16 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center mb-2 shadow-inner group transition-all">
+            <Mail className="size-7 text-blue-600 animate-bounce" />
           </div>
           <h2 className="font-bold text-zinc-900 text-2xl tracking-tight">Check your email</h2>
           <p className="text-zinc-500 text-sm leading-relaxed max-w-sm">
