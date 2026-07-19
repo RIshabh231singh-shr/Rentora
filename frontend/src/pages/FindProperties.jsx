@@ -15,9 +15,12 @@ import {
   DollarSign,
   Send,
   Building,
+  CheckCircle,
 } from "lucide-react";
 import { Badge, Button, Card, CardContent, CardFooter, Input } from "../components/ui";
 import api from "../utility/axiosInstance";
+
+const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
 
 export default function FindProperties() {
   const [user, setUser] = useState(null);
@@ -36,6 +39,14 @@ export default function FindProperties() {
   const [viewProperty, setViewProperty] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Hourly Booking Calendar States
+  const [bookingDate, setBookingDate] = useState(new Date());
+  const [bookedIntervals, setBookedIntervals] = useState([]);
+  const [startHour, setStartHour] = useState(null);
+  const [endHour, setEndHour] = useState(null);
+
+  // Form submission alerts
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [bookingSuccess, setBookingSuccess] = useState("");
@@ -43,7 +54,6 @@ export default function FindProperties() {
   const fetchProperties = async () => {
     try {
       setLoading(true);
-      // Fetch all properties
       const response = await api.get("/properties");
       if (response.data && response.data.success) {
         setProperties(response.data.data);
@@ -70,6 +80,44 @@ export default function FindProperties() {
     }
   }, [user]);
 
+  // Fetch hourly availability for property
+  const fetchAvailability = async (propertyId, date) => {
+    try {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${day}`;
+
+      const response = await api.get(`/bookings/property/${propertyId}/availability`, {
+        params: { date: dateStr }
+      });
+
+      if (response.data && response.data.success) {
+        const intervals = response.data.bookings.map(b => {
+          const s = new Date(b.startTime);
+          const e = new Date(b.endTime);
+          return {
+            startHour: s.getHours(),
+            endHour: e.getHours()
+          };
+        });
+        setBookedIntervals(intervals);
+      }
+    } catch (err) {
+      console.error("Error fetching availability:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (isViewModalOpen && viewProperty && viewProperty.rentType === "hourly") {
+      fetchAvailability(viewProperty._id, bookingDate);
+      setStartHour(null);
+      setEndHour(null);
+      setBookingError("");
+      setBookingSuccess("");
+    }
+  }, [isViewModalOpen, viewProperty, bookingDate]);
+
   const handleLogout = async () => {
     try {
       await api.post("/auth/logout");
@@ -84,12 +132,13 @@ export default function FindProperties() {
   const handleOpenDetails = (prop) => {
     setViewProperty(prop);
     setActiveImageIndex(0);
+    setBookingDate(new Date());
     setBookingError("");
     setBookingSuccess("");
     setIsViewModalOpen(true);
   };
 
-  const handleRequestToRent = async (propertyId) => {
+  const handleMonthlyRequestToRent = async (propertyId) => {
     setBookingError("");
     setBookingSuccess("");
     setBookingLoading(true);
@@ -98,9 +147,9 @@ export default function FindProperties() {
       const response = await api.post(`/properties/${propertyId}/tenants`);
       if (response.data && response.data.success) {
         setBookingSuccess("Your rental request has been sent to the owner!");
-        fetchProperties(); // Refresh properties lists to reflect pending request
+        fetchProperties();
         
-        // Refresh local details view model too
+        // Refresh local details view
         const updatedResponse = await api.get(`/properties`);
         if (updatedResponse.data && updatedResponse.data.success) {
           const freshProp = updatedResponse.data.data.find(p => p._id === propertyId);
@@ -117,6 +166,78 @@ export default function FindProperties() {
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  const handleHourlyBookProperty = async () => {
+    if (startHour === null || endHour === null) {
+      setBookingError("Please select both a start and end hour.");
+      return;
+    }
+    setBookingError("");
+    setBookingSuccess("");
+    setBookingLoading(true);
+
+    try {
+      const startTime = new Date(bookingDate);
+      startTime.setHours(startHour, 0, 0, 0);
+
+      const endTime = new Date(bookingDate);
+      endTime.setHours(endHour, 0, 0, 0);
+
+      const response = await api.post("/bookings/property/book", {
+        propertyId: viewProperty._id,
+        bookingStartTime: startTime.toISOString(),
+        bookingEndTime: endTime.toISOString()
+      });
+
+      if (response.data && response.data.success) {
+        setBookingSuccess(`Successfully booked ${viewProperty.propertyName} from ${startHour}:00 to ${endHour}:00!`);
+        setStartHour(null);
+        setEndHour(null);
+        fetchAvailability(viewProperty._id, bookingDate);
+      } else {
+        setBookingError(response.data.message || "Failed to book slot.");
+      }
+    } catch (err) {
+      console.error("Error booking hourly property:", err);
+      setBookingError(err.response?.data?.message || "Failed to book hourly slot.");
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  // Hour pill selection logic
+  const handleHourClick = (hour) => {
+    if (isHourBooked(hour)) return; // Don't allow clicking booked slots
+
+    if (startHour === null || (startHour !== null && endHour !== null)) {
+      setStartHour(hour);
+      setEndHour(null);
+    } else {
+      if (hour > startHour) {
+        setEndHour(hour);
+      } else {
+        setStartHour(hour);
+        setEndHour(null);
+      }
+    }
+  };
+
+  const isHourBooked = (hour) => {
+    return bookedIntervals.some(b => hour >= b.startHour && hour < b.endHour);
+  };
+
+  const isHourInRange = (hour) => {
+    if (startHour === null || endHour === null) return false;
+    return hour >= startHour && hour <= endHour;
+  };
+
+  const isRangeConflicting = () => {
+    if (startHour === null || endHour === null) return false;
+    for (let h = startHour; h < endHour; h++) {
+      if (isHourBooked(h)) return true;
+    }
+    return false;
   };
 
   // Client-side filtering logic
@@ -137,11 +258,11 @@ export default function FindProperties() {
   });
 
   return (
-    <div className="bg-white text-zinc-950 w-full min-h-screen flex overflow-visible font-sans">
-      <div className="min-h-screen flex w-full">
+    <div className="bg-white text-zinc-950 w-full h-screen flex overflow-hidden font-sans">
+      <div className="h-screen flex w-full">
         
         {/* Sidebar */}
-        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 min-h-screen">
+        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 h-screen">
           <div className="flex flex-col gap-8">
             <div className="flex px-2 items-center gap-2">
               <div className="size-9 rounded-xl bg-white/15 flex justify-center items-center">
@@ -208,7 +329,7 @@ export default function FindProperties() {
         </aside>
 
         {/* Main Content */}
-        <main className="bg-slate-50 flex p-8 flex-col flex-1 gap-6 min-h-screen overflow-y-auto">
+        <main className="bg-slate-50 flex p-8 flex-col flex-1 gap-6 h-screen overflow-y-auto">
           <div className="flex justify-between items-start">
             <div className="flex flex-col gap-1">
               <h1 className="font-bold text-blue-900 text-2xl leading-8">
@@ -236,7 +357,7 @@ export default function FindProperties() {
                 <Input
                   className="bg-slate-50 border-zinc-200"
                   type="number"
-                  placeholder="Min Price / hour (₹)"
+                  placeholder="Min Price (₹)"
                   value={minPrice}
                   onChange={(e) => setMinPrice(e.target.value)}
                 />
@@ -245,7 +366,7 @@ export default function FindProperties() {
                 <Input
                   className="bg-slate-50 border-zinc-200"
                   type="number"
-                  placeholder="Max Price / hour (₹)"
+                  placeholder="Max Price (₹)"
                   value={maxPrice}
                   onChange={(e) => setMaxPrice(e.target.value)}
                 />
@@ -283,7 +404,7 @@ export default function FindProperties() {
               <Building className="size-12 text-blue-900/40" />
               <h3 className="font-semibold text-zinc-900 text-lg">No matching properties found</h3>
               <p className="text-[#71717b] text-sm max-w-sm">
-                Try widening your search filters, adjusting the price limits, or exploring other category choices.
+                Try widening your search filters, adjusting the price limits, or exploring other choices.
               </p>
             </div>
           ) : (
@@ -319,7 +440,9 @@ export default function FindProperties() {
                         </div>
                         <div className="flex items-center gap-2">
                           <DollarSign className="size-4 text-[#71717b]" />
-                          <span className="text-zinc-700 text-xs font-medium">Price: ₹{prop.pricePerHour}/hr</span>
+                          <span className="text-zinc-700 text-xs font-medium">
+                            Price: ₹{prop.pricePerHour}/{prop.rentType === "monthly" ? "mo" : "hr"}
+                          </span>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1">
@@ -441,8 +564,10 @@ export default function FindProperties() {
                   <span className="text-zinc-950 font-bold text-sm">{viewProperty.capacity} People</span>
                 </div>
                 <div>
-                  <span className="text-xs text-[#71717b] block">Hourly Rate</span>
-                  <span className="text-[#2b7fff] font-bold text-sm">₹{viewProperty.pricePerHour} / hour</span>
+                  <span className="text-xs text-[#71717b] block">Rental Rate</span>
+                  <span className="text-[#2b7fff] font-bold text-sm">
+                    ₹{viewProperty.pricePerHour} / {viewProperty.rentType === "monthly" ? "month" : "hour"}
+                  </span>
                 </div>
                 <div>
                   <span className="text-xs text-[#71717b] block">Security Deposit</span>
@@ -450,9 +575,15 @@ export default function FindProperties() {
                 </div>
                 <div>
                   <span className="text-xs text-[#71717b] block">Status</span>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full inline-block ${viewProperty.tenants?.length >= viewProperty.capacity ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
-                    {viewProperty.tenants?.length >= viewProperty.capacity ? "Fully Occupied" : `${viewProperty.capacity - (viewProperty.tenants?.length || 0)} space(s) free`}
-                  </span>
+                  {viewProperty.rentType === "monthly" ? (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full inline-block ${viewProperty.tenants?.length >= viewProperty.capacity ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+                      {viewProperty.tenants?.length >= viewProperty.capacity ? "Fully Occupied" : `${viewProperty.capacity - (viewProperty.tenants?.length || 0)} space(s) free`}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block bg-blue-50 text-blue-700">
+                      Hourly Booking
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -466,6 +597,79 @@ export default function FindProperties() {
                   ))}
                 </div>
               </div>
+
+              {/* Dynamic Hourly Calendar Selection */}
+              {viewProperty.rentType === "hourly" && (
+                <div className="flex flex-col gap-3 border-t border-solid border-zinc-100 pt-4 mt-2">
+                  <h4 className="font-bold text-blue-900 text-sm flex items-center gap-1.5">
+                    <Calendar className="size-4 text-[#2b7fff]" />
+                    Hourly Booking Calendar
+                  </h4>
+                  
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-semibold text-zinc-500">Choose Booking Date</span>
+                    <input
+                      type="date"
+                      className="h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                      value={bookingDate.toISOString().split("T")[0]}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val) setBookingDate(new Date(val));
+                      }}
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs font-semibold text-zinc-500 block">
+                      Select Hours (Click to select start and end range. Booked intervals are red, free ranges are green)
+                    </span>
+                    <div className="grid grid-cols-5 gap-2">
+                      {HOURS.map((hour) => {
+                        const booked = isHourBooked(hour);
+                        const selected = startHour !== null && (hour === startHour || hour === endHour || isHourInRange(hour));
+                        
+                        let pillClass = "bg-white text-zinc-900 border-zinc-200 hover:bg-zinc-50";
+                        if (booked) {
+                          pillClass = "bg-red-100 text-red-700 border-red-200 cursor-not-allowed";
+                        } else if (selected) {
+                          pillClass = isRangeConflicting() 
+                            ? "bg-red-500 text-white border-red-600" 
+                            : "bg-green-500 text-white border-green-600";
+                        }
+
+                        return (
+                          <button
+                            key={hour}
+                            type="button"
+                            disabled={booked}
+                            onClick={() => handleHourClick(hour)}
+                            className={`h-9 border border-solid rounded-lg text-xs font-semibold flex items-center justify-center cursor-pointer transition-colors ${pillClass}`}
+                          >
+                            {hour > 12 ? `${hour - 12} PM` : hour === 12 ? "12 PM" : `${hour} AM`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {startHour !== null && (
+                      <div className="flex justify-between items-center text-xs bg-slate-50 p-2.5 rounded-lg border border-zinc-100 mt-1">
+                        <span>
+                          Selected Range: <strong className="text-[#2b7fff]">{startHour}:00</strong> to{" "}
+                          <strong className="text-[#2b7fff]">{endHour !== null ? `${endHour}:00` : "..."}</strong>
+                        </span>
+                        {endHour !== null && !isRangeConflicting() && (
+                          <span className="text-green-600 font-bold flex items-center gap-1">
+                            <CheckCircle className="size-3.5" /> Free & Valid
+                          </span>
+                        )}
+                        {isRangeConflicting() && (
+                          <span className="text-red-600 font-bold">Contains Booked Hours!</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Error and Success alerts inside modal */}
@@ -516,27 +720,45 @@ export default function FindProperties() {
                   );
                 }
 
-                if (hasPending) {
+                // If monthly, check pending list
+                if (viewProperty.rentType === "monthly") {
+                  if (hasPending) {
+                    return (
+                      <Button
+                        disabled
+                        className="bg-zinc-100 text-zinc-400 border border-zinc-200 border-solid cursor-not-allowed"
+                      >
+                        Request Pending Approval
+                      </Button>
+                    );
+                  }
+
+                  const isAtCapacity = viewProperty.tenants?.length >= viewProperty.capacity;
+
                   return (
                     <Button
-                      disabled
-                      className="bg-zinc-100 text-zinc-400 border border-zinc-200 border-solid cursor-not-allowed"
+                      onClick={() => handleMonthlyRequestToRent(viewProperty._id)}
+                      disabled={bookingLoading || isAtCapacity}
+                      className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 border-none cursor-pointer gap-2"
                     >
-                      Request Pending Approval
+                      <Send className="size-4" />
+                      <span>{isAtCapacity ? "Fully Occupied" : bookingLoading ? "Sending..." : "Request to Rent"}</span>
                     </Button>
                   );
                 }
 
-                const isAtCapacity = viewProperty.tenants?.length >= viewProperty.capacity;
+                // If hourly, select calendar range
+                const rangeConflicting = isRangeConflicting();
+                const invalidSelection = startHour === null || endHour === null || rangeConflicting;
 
                 return (
                   <Button
-                    onClick={() => handleRequestToRent(viewProperty._id)}
-                    disabled={bookingLoading || isAtCapacity}
+                    onClick={handleHourlyBookProperty}
+                    disabled={bookingLoading || invalidSelection}
                     className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 border-none cursor-pointer gap-2"
                   >
                     <Send className="size-4" />
-                    <span>{isAtCapacity ? "Full Occupancy" : bookingLoading ? "Sending..." : "Request to Rent"}</span>
+                    <span>{bookingLoading ? "Booking..." : "Book Selected Range"}</span>
                   </Button>
                 );
               })()}
