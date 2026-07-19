@@ -1,5 +1,7 @@
 const MaintenanceRequest = require("../models/maintainanceRequest");
 const Property = require("../models/property");
+const Booking = require("../models/booking");
+const Notification = require("../models/notification");
 const cloudinary = require("../config/cloudinary");
 
 // Helper to stream file buffer to Cloudinary
@@ -18,7 +20,8 @@ const uploadStream = (fileBuffer) => {
 
 const createRequest = async (req, res) => {
     try {
-        const { title, category, description } = req.body;
+        const mongoose = require("mongoose");
+        const { title, category, description, propertyId } = req.body;
 
         if (!title || !category || !description) {
             return res.status(400).json({ message: "Title, category and description are required fields." });
@@ -37,11 +40,36 @@ const createRequest = async (req, res) => {
             return res.status(400).json({ message: `Invalid category. Must be one of: ${validCategories.join(", ")}` });
         }
 
-        // Find the property where this user is listed as a tenant
-        const property = await Property.findOne({ tenants: req.user._id });
+        let property;
+        if (propertyId) {
+            if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+                return res.status(400).json({ message: "Invalid property ID." });
+            }
+            property = await Property.findById(propertyId);
+            if (!property) {
+                return res.status(404).json({ message: "Property not found." });
+            }
+            const isTenant = property.tenants.some(t => t.toString() === req.user._id.toString());
+            
+            const hasBooking = await Booking.findOne({
+                user: req.user._id,
+                property: propertyId,
+                status: { $in: ["booked", "checked_in", "completed"] }
+            });
+
+            if (!isTenant && !hasBooking) {
+                return res.status(403).json({
+                    message: "You are not authorized to submit maintenance requests for this property."
+                });
+            }
+        } else {
+            // Find the property where this user is listed as a tenant
+            property = await Property.findOne({ tenants: req.user._id });
+        }
+
         if (!property) {
             return res.status(400).json({
-                message: "You must be registered as a tenant in a property to submit a maintenance request."
+                message: "You must specify a valid propertyId or be registered as a tenant in a property to submit a maintenance request."
             });
         }
 
@@ -125,7 +153,86 @@ const getRequests = async (req, res) => {
     }
 };
 
+const updateRequestStatus = async (req, res) => {
+    try {
+        const mongoose = require("mongoose");
+        const { requestId } = req.params;
+        const { status, resolutionNotes } = req.body;
+
+        const validStatuses = ["assigned", "in_progress", "resolved", "cancelled"];
+        if (!status || !validStatuses.includes(status)) {
+            return res.status(400).json({ message: `Status must be one of: ${validStatuses.join(", ")}` });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(requestId)) {
+            return res.status(400).json({ message: "Invalid request ID" });
+        }
+
+        const request = await MaintenanceRequest.findById(requestId)
+            .populate("property", "owner propertyName")
+            .populate("user", "_id firstname lastname email");
+
+        if (!request) {
+            return res.status(404).json({ message: "Maintenance request not found" });
+        }
+
+        // Only landlord of that property or admin can update
+        const isOwner = request.property?.owner?.toString() === req.user._id.toString();
+        const isAdmin = req.user.role === "admin";
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ message: "You are not authorized to update this request" });
+        }
+
+        request.status = status;
+        if (resolutionNotes) request.resolutionNotes = resolutionNotes;
+        if (status === "resolved") {
+            request.resolvedAt = new Date();
+            request.resolvedBy = req.user._id;
+        }
+        await request.save();
+
+        const statusLabels = {
+            assigned: "Assigned",
+            in_progress: "In Progress",
+            resolved: "Resolved",
+            cancelled: "Cancelled"
+        };
+
+        // Notify tenant in DB
+        const notifType = status === "resolved" ? "MAINTENANCE_RESOLVED" : "MAINTENANCE_STATUS_CHANGED";
+        Notification.create({
+            recipient: request.user._id,
+            type: notifType,
+            title: `Maintenance ${statusLabels[status]}`,
+            message: `Your maintenance request "${request.title}" has been marked as ${statusLabels[status]}.${
+                resolutionNotes ? ` Note: ${resolutionNotes}` : ""
+            }`,
+            relatedProperty: request.property._id,
+            status: "unread"
+        }).catch(err => console.error("Maintenance notification failed:", err));
+
+        // Real-time WebSocket push to tenant
+        if (global.io) {
+            global.io.to(request.user._id.toString()).emit("notification", {
+                type: notifType,
+                title: `Maintenance ${statusLabels[status]}`,
+                message: `Your request "${request.title}" is now ${statusLabels[status]}.`
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Status updated to ${statusLabels[status]}`,
+            data: request
+        });
+    } catch (err) {
+        console.error("updateRequestStatus error:", err);
+        res.status(500).json({ message: "An error occurred while updating request status." });
+    }
+};
+
 module.exports = {
     createRequest,
-    getRequests
+    getRequests,
+    updateRequestStatus
 };
