@@ -49,9 +49,9 @@ const createRequest = async (req, res) => {
 
         // Upload to Cloudinary if file exists
         if (req.file) {
-            const hasCloudinaryCredentials = process.env.CLOUDINARY_CLOUD_NAME && 
-                                             process.env.CLOUDINARY_API_KEY && 
-                                             process.env.CLOUDINARY_API_SECRET;
+            const hasCloudinaryCredentials = process.env.CLOUDINARY_NAME && 
+                                             process.env.CLOUDINARY_KEY && 
+                                             process.env.CLOUDINARY_SECRET;
             if (hasCloudinaryCredentials) {
                 try {
                     const secureUrl = await uploadStream(req.file.buffer);
