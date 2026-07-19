@@ -16,7 +16,7 @@ const BookingSchema = new Schema({
     amenity : {
         type : Schema.Types.ObjectId,
         ref : "Amenity",
-        required : true
+        required : false
     },
     bookingStartTime : {
         type : Date,
