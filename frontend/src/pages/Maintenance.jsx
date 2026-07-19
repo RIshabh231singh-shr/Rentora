@@ -26,9 +26,10 @@ export default function Maintenance() {
 
   // New request modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newRequest, setNewRequest] = useState({ title: "", description: "", category: "plumbing" });
+  const [newRequest, setNewRequest] = useState({ title: "", description: "", category: "plumbing", propertyId: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [userProperties, setUserProperties] = useState([]);
 
   // File upload state
   const [selectedFile, setSelectedFile] = useState(null);
@@ -52,6 +53,27 @@ export default function Maintenance() {
     }
   };
 
+  const fetchUserProperties = async () => {
+    try {
+      const response = await api.get("/dashboard");
+      if (response.data) {
+        const rented = response.data.rentedProperties || [];
+        const booked = (response.data.upcomingBookingsList || [])
+          .map(b => b.property)
+          .filter(Boolean);
+        
+        // De-duplicate by ID
+        const uniqueMap = {};
+        [...rented, ...booked].forEach(p => {
+          uniqueMap[p._id] = p;
+        });
+        setUserProperties(Object.values(uniqueMap));
+      }
+    } catch (err) {
+      console.error("Error fetching user properties for maintenance dropdown:", err);
+    }
+  };
+
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
@@ -64,6 +86,9 @@ export default function Maintenance() {
   useEffect(() => {
     if (user) {
       fetchRequests();
+      if (user.role === "tenant") {
+        fetchUserProperties();
+      }
     }
   }, [user]);
 
@@ -77,7 +102,7 @@ export default function Maintenance() {
 
   const handleCloseCreateModal = () => {
     setIsModalOpen(false);
-    setNewRequest({ title: "", description: "", category: "plumbing" });
+    setNewRequest({ title: "", description: "", category: "plumbing", propertyId: "" });
     setSelectedFile(null);
     if (imagePreview) {
       URL.revokeObjectURL(imagePreview);
@@ -95,6 +120,9 @@ export default function Maintenance() {
       formData.append("title", newRequest.title);
       formData.append("description", newRequest.description);
       formData.append("category", newRequest.category);
+      if (newRequest.propertyId) {
+        formData.append("propertyId", newRequest.propertyId);
+      }
       if (selectedFile) {
         formData.append("image", selectedFile);
       }
@@ -106,7 +134,7 @@ export default function Maintenance() {
       });
 
       setIsModalOpen(false);
-      setNewRequest({ title: "", description: "", category: "plumbing" });
+      setNewRequest({ title: "", description: "", category: "plumbing", propertyId: "" });
       setSelectedFile(null);
       if (imagePreview) {
         URL.revokeObjectURL(imagePreview);
@@ -124,6 +152,21 @@ export default function Maintenance() {
   const handleViewRequest = (req) => {
     setViewRequest(req);
     setIsViewModalOpen(true);
+  };
+
+  // Landlord/admin: update maintenance status
+  const [updatingId, setUpdatingId] = useState(null);
+  const handleUpdateStatus = async (requestId, newStatus, notes = "") => {
+    try {
+      setUpdatingId(requestId);
+      await api.put(`/maintenance/${requestId}/status`, { status: newStatus, resolutionNotes: notes });
+      // Re-fetch requests to reflect new state
+      await fetchRequests();
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -325,6 +368,11 @@ export default function Maintenance() {
                               Pending
                             </Badge>
                           )}
+                          {req.status === "assigned" && (
+                            <Badge className="border-transparent bg-blue-100 text-blue-700 font-medium">
+                              Assigned
+                            </Badge>
+                          )}
                           {req.status === "in_progress" && (
                             <Badge className="border-transparent bg-amber-100 text-amber-700 font-medium">
                               In Progress
@@ -332,12 +380,12 @@ export default function Maintenance() {
                           )}
                           {(req.status === "resolved" || req.status === "completed") && (
                             <Badge className="border-transparent bg-emerald-100 text-emerald-700 font-medium">
-                              Completed
+                              Resolved
                             </Badge>
                           )}
-                          {req.status !== "pending" && req.status !== "in_progress" && req.status !== "resolved" && req.status !== "completed" && (
-                            <Badge className="border-transparent bg-zinc-100 text-zinc-700 font-medium capitalize">
-                              {req.status}
+                          {req.status === "cancelled" && (
+                            <Badge className="border-transparent bg-zinc-100 text-zinc-500 font-medium">
+                              Cancelled
                             </Badge>
                           )}
                         </td>
@@ -345,15 +393,49 @@ export default function Maintenance() {
                           {new Date(req.updatedAt).toLocaleDateString()}
                         </td>
                         <td className="text-right px-6 py-4">
-                          <Button
-                            className="text-[#2b7fff] border-zinc-200 border border-solid gap-1.5 bg-white hover:bg-zinc-50 border-none cursor-pointer"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleViewRequest(req)}
-                          >
-                            <Eye className="size-3.5" />
-                            View
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              className="text-[#2b7fff] border-zinc-200 border border-solid gap-1.5 bg-white hover:bg-zinc-50 border-none cursor-pointer"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewRequest(req)}
+                            >
+                              <Eye className="size-3.5" />
+                              View
+                            </Button>
+                            {/* Landlord/admin status actions */}
+                            {user && (user.role === "landlord" || user.role === "admin") && req.status !== "resolved" && req.status !== "cancelled" && (
+                              <>
+                                {req.status === "pending" && (
+                                  <button
+                                    disabled={updatingId === req._id}
+                                    onClick={() => handleUpdateStatus(req._id, "assigned")}
+                                    className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 border-solid cursor-pointer hover:bg-blue-100 transition-colors disabled:opacity-50"
+                                  >
+                                    {updatingId === req._id ? "..." : "Assign"}
+                                  </button>
+                                )}
+                                {req.status === "assigned" && (
+                                  <button
+                                    disabled={updatingId === req._id}
+                                    onClick={() => handleUpdateStatus(req._id, "in_progress")}
+                                    className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 border-solid cursor-pointer hover:bg-amber-100 transition-colors disabled:opacity-50"
+                                  >
+                                    {updatingId === req._id ? "..." : "In Progress"}
+                                  </button>
+                                )}
+                                {(req.status === "assigned" || req.status === "in_progress") && (
+                                  <button
+                                    disabled={updatingId === req._id}
+                                    onClick={() => handleUpdateStatus(req._id, "resolved")}
+                                    className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 border-solid cursor-pointer hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                                  >
+                                    {updatingId === req._id ? "..." : "Resolve"}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -420,70 +502,95 @@ export default function Maintenance() {
               </button>
             </div>
             <form onSubmit={handleCreateRequest} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold text-zinc-700">Issue Title</label>
-                <Input
-                  required
-                  minLength={5}
-                  maxLength={100}
-                  value={newRequest.title}
-                  onChange={(e) => setNewRequest({ ...newRequest, title: e.target.value })}
-                  placeholder="e.g. AC not cooling"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold text-zinc-700">Category</label>
-                <select
-                  className="w-full h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  value={newRequest.category}
-                  onChange={(e) => setNewRequest({ ...newRequest, category: e.target.value })}
-                >
-                  <option value="plumbing">Plumbing</option>
-                  <option value="electrical">Electrical</option>
-                  <option value="cleaning">Cleaning</option>
-                  <option value="others">Others</option>
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold text-zinc-700">Description</label>
-                <textarea
-                  required
-                  minLength={10}
-                  maxLength={1000}
-                  rows={4}
-                  className="w-full p-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-sans text-sm"
-                  value={newRequest.description}
-                  onChange={(e) => setNewRequest({ ...newRequest, description: e.target.value })}
-                  placeholder="Please detail the issue..."
-                />
-              </div>
-              
-              {/* Image Upload Input */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-zinc-700">Attach Photo (Optional)</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-[#2b7fff] hover:file:bg-blue-100 cursor-pointer"
-                />
-                {imagePreview && (
-                  <div className="mt-2 relative w-32 h-32 rounded-xl overflow-hidden border border-zinc-200 border-solid bg-slate-50">
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedFile(null);
-                        URL.revokeObjectURL(imagePreview);
-                        setImagePreview(null);
-                      }}
-                      className="absolute top-1 right-1 size-6 rounded-full bg-red-500 text-white flex items-center justify-center border-none font-bold text-xs cursor-pointer shadow-md hover:bg-red-600"
+              {userProperties.length === 0 ? (
+                <div className="bg-red-50 border border-red-200 border-solid rounded-2xl p-4 flex flex-col gap-2">
+                  <p className="text-red-700 text-xs font-semibold leading-relaxed">
+                    You do not have any active property rentals or bookings. You must have an active monthly lease or hourly booking to submit a maintenance request.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-semibold text-zinc-700">Property / Rental Booking</label>
+                    <select
+                      required
+                      className="w-full h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                      value={newRequest.propertyId}
+                      onChange={(e) => setNewRequest({ ...newRequest, propertyId: e.target.value })}
                     >
-                      &times;
-                    </button>
+                      <option value="">-- Choose Rented/Booked Property --</option>
+                      {userProperties.map(p => (
+                        <option key={p._id} value={p._id}>{p.propertyName} ({p.propertyAddress}, {p.city})</option>
+                      ))}
+                    </select>
                   </div>
-                )}
-              </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-semibold text-zinc-700">Issue Title</label>
+                    <Input
+                      required
+                      minLength={5}
+                      maxLength={100}
+                      value={newRequest.title}
+                      onChange={(e) => setNewRequest({ ...newRequest, title: e.target.value })}
+                      placeholder="e.g. AC not cooling"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-semibold text-zinc-700">Category</label>
+                    <select
+                      className="w-full h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                      value={newRequest.category}
+                      onChange={(e) => setNewRequest({ ...newRequest, category: e.target.value })}
+                    >
+                      <option value="plumbing">Plumbing</option>
+                      <option value="electrical">Electrical</option>
+                      <option value="cleaning">Cleaning</option>
+                      <option value="others">Others</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-semibold text-zinc-700">Description</label>
+                    <textarea
+                      required
+                      minLength={10}
+                      maxLength={1000}
+                      rows={4}
+                      className="w-full p-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-sans text-sm"
+                      value={newRequest.description}
+                      onChange={(e) => setNewRequest({ ...newRequest, description: e.target.value })}
+                      placeholder="Please detail the issue..."
+                    />
+                  </div>
+                  
+                  {/* Image Upload Input */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-zinc-700">Attach Photo (Optional)</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-[#2b7fff] hover:file:bg-blue-100 cursor-pointer"
+                    />
+                    {imagePreview && (
+                      <div className="mt-2 relative w-32 h-32 rounded-xl overflow-hidden border border-zinc-200 border-solid bg-slate-50">
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedFile(null);
+                            URL.revokeObjectURL(imagePreview);
+                            setImagePreview(null);
+                          }}
+                          className="absolute top-1 right-1 size-6 rounded-full bg-red-500 text-white flex items-center justify-center border-none font-bold text-xs cursor-pointer shadow-md hover:bg-red-600"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               {submitError && <p className="text-red-600 text-xs">{submitError}</p>}
               
@@ -496,13 +603,15 @@ export default function Maintenance() {
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 cursor-pointer border-none"
-                  disabled={submitting}
-                >
-                  {submitting ? "Submitting..." : "Submit Request"}
-                </Button>
+                {userProperties.length > 0 && (
+                  <Button
+                    type="submit"
+                    className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 cursor-pointer border-none"
+                    disabled={submitting}
+                  >
+                    {submitting ? "Submitting..." : "Submit Request"}
+                  </Button>
+                )}
               </div>
             </form>
           </div>
