@@ -120,17 +120,18 @@ const createProperty = async (req, res) => {
         }
 
         let imageUrls = [];
-        if (req.file) {
+        if (req.files && req.files.length > 0) {
             const hasCloudinaryCredentials = process.env.CLOUDINARY_NAME && 
                                              process.env.CLOUDINARY_KEY && 
                                              process.env.CLOUDINARY_SECRET;
             if (hasCloudinaryCredentials) {
                 try {
-                    const secureUrl = await uploadStream(req.file.buffer);
-                    imageUrls.push(secureUrl);
+                    const uploadPromises = req.files.map(file => uploadStream(file.buffer));
+                    const secureUrls = await Promise.all(uploadPromises);
+                    imageUrls = secureUrls;
                 } catch (uploadErr) {
                     console.error("Cloudinary property upload failed:", uploadErr);
-                    return res.status(500).json({ success: false, message: "Failed to upload property image to Cloudinary" });
+                    return res.status(500).json({ success: false, message: "Failed to upload property images to Cloudinary" });
                 }
             } else {
                 console.warn("Cloudinary credentials missing, using placeholder image fallback.");
@@ -541,19 +542,27 @@ const addTenantToProperty = async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
-        if (user.role !== "tenant") {
+        if (user.role !== "tenant" && user.role !== "landlord") {
             return res.status(400).json({
                 success: false,
-                message: `User with role '${user.role}' cannot be added as a tenant`
+                message: `User with role '${user.role}' cannot request to rent a property`
             });
         }
 
-        const isSelfRequest = tenantId === requesterId && requesterRole === "tenant";
+        const isSelfRequest = tenantId === requesterId && (requesterRole === "tenant" || requesterRole === "landlord");
         const isLandlord = property.owner.toString() === requesterId;
         const isAdmin = requesterRole === "admin";
 
-        // Case 1: Tenant self-request
+        // Case 1: Tenant/Landlord self-request
         if (isSelfRequest) {
+            // Block owner from booking their own property
+            if (property.owner.toString() === requesterId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "You cannot request to rent/book your own property."
+                });
+            }
+
             // Check capacity before allowing pending request
             if (property.tenants.length >= property.capacity) {
                 return res.status(400).json({
