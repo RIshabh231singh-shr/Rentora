@@ -15,6 +15,32 @@ const dashboardRoutes = require("./routes/dashboard");
 const app = express();
 const port = process.env.PORT || 5000;
 
+const http = require("http");
+const { Server } = require("socket.io");
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "http://localhost:5173",
+        credentials: true
+    }
+});
+
+global.io = io;
+
+io.on("connection", (socket) => {
+    console.log("WebSocket client connected:", socket.id);
+
+    socket.on("register", (userId) => {
+        socket.join(userId);
+        console.log(`Socket ${socket.id} registered to user room ${userId}`);
+    });
+
+    socket.on("disconnect", () => {
+        console.log("WebSocket client disconnected:", socket.id);
+    });
+});
+
 // Middleware
 app.use(cors({
     origin: "http://localhost:5173",
@@ -57,7 +83,7 @@ const initializeConnection = async () => {
     }
 
     try {
-        app.listen(port, () => {
+        server.listen(port, () => {
             console.log("Server is listening at port :", port);
         });
     } catch (err) {
