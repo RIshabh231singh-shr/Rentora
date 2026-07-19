@@ -36,6 +36,8 @@ export default function Dashboard() {
   const [rentedProperties, setRentedProperties] = useState([]);
   const [pendingBookings, setPendingBookings] = useState([]);
   const [pendingLeases, setPendingLeases] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Landlord action handlers
@@ -45,6 +47,7 @@ export default function Dashboard() {
       const response = await api.get("/dashboard");
       if (response.data) {
         setPendingBookings(response.data.pendingBookings || []);
+        setNotifications(response.data.notifications || []);
       }
     } catch (err) {
       console.error("Error approving booking:", err);
@@ -57,6 +60,7 @@ export default function Dashboard() {
       const response = await api.get("/dashboard");
       if (response.data) {
         setPendingBookings(response.data.pendingBookings || []);
+        setNotifications(response.data.notifications || []);
       }
     } catch (err) {
       console.error("Error rejecting booking:", err);
@@ -69,6 +73,7 @@ export default function Dashboard() {
       const response = await api.get("/dashboard");
       if (response.data) {
         setPendingLeases(response.data.pendingLeases || []);
+        setNotifications(response.data.notifications || []);
       }
     } catch (err) {
       console.error("Error approving lease:", err);
@@ -81,6 +86,7 @@ export default function Dashboard() {
       const response = await api.get("/dashboard");
       if (response.data) {
         setPendingLeases(response.data.pendingLeases || []);
+        setNotifications(response.data.notifications || []);
       }
     } catch (err) {
       console.error("Error rejecting lease:", err);
@@ -161,13 +167,15 @@ export default function Dashboard() {
             activeRequests: 0,
             completedRequests: 0,
             upcomingBookings: 0,
-            currentBooking: "None"
+            currentBooking: "None",
+            amenityBookings: 0
           });
           setRecentRequests(response.data.recentRequests || []);
           setUpcomingBookingsList(response.data.upcomingBookingsList || []);
           setRentedProperties(response.data.rentedProperties || []);
           setPendingBookings(response.data.pendingBookings || []);
           setPendingLeases(response.data.pendingLeases || []);
+          setNotifications(response.data.notifications || []);
         }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
@@ -195,6 +203,18 @@ export default function Dashboard() {
         message: data.message || "A new request has been submitted."
       };
       setToasts((prev) => [...prev, newToast]);
+      
+      // Also append to local notifications state
+      setNotifications((prev) => [
+        {
+          _id: String(Date.now()),
+          title: newToast.title,
+          message: newToast.message,
+          status: "unread",
+          createdAt: new Date().toISOString()
+        },
+        ...prev
+      ]);
 
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== newToast.id));
@@ -205,6 +225,18 @@ export default function Dashboard() {
       socket.disconnect();
     };
   }, [user]);
+
+  const toggleNotifications = async () => {
+    setShowNotifications(!showNotifications);
+    if (!showNotifications) {
+      setNotifications((prev) => prev.map(n => ({ ...n, status: "read" })));
+      try {
+        await api.put("/dashboard/notifications/mark-read");
+      } catch (err) {
+        console.error("Failed to mark notifications read:", err);
+      }
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -299,11 +331,78 @@ export default function Dashboard() {
                 Here's what's happening with your property today
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <button className="relative size-10 shadow-sm rounded-full bg-white border-zinc-200 border-1 border-solid flex justify-center items-center cursor-pointer">
+            <div className="flex items-center gap-4 relative">
+              <button 
+                onClick={toggleNotifications}
+                className="relative size-10 shadow-sm rounded-full bg-white border-zinc-200 border-1 border-solid flex justify-center items-center cursor-pointer hover:bg-zinc-50"
+              >
                 <Bell className="size-5 text-blue-900" />
-                <span className="size-2 rounded-full bg-[#e7000b] absolute right-2 top-1.5" />
+                {notifications.some(n => n.status === "unread") && (
+                  <span className="size-2.5 rounded-full bg-red-600 absolute right-2.5 top-2 animate-pulse" />
+                )}
               </button>
+
+              {/* Notifications Dropdown Panel */}
+              {showNotifications && (
+                <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-2xl border border-zinc-200 border-solid py-4 w-72 md:w-80 max-h-[350px] overflow-y-auto z-[999] flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="px-4 border-b border-zinc-100 pb-2 flex justify-between items-center">
+                    <span className="font-bold text-xs text-blue-900">Notifications</span>
+                    <button 
+                      onClick={() => setNotifications([])}
+                      className="text-[10px] text-zinc-400 hover:text-zinc-600 cursor-pointer border-none bg-transparent"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p className="text-xs text-[#71717b] p-6 text-center">No notifications found</p>
+                  ) : (
+                    <div className="flex flex-col gap-0.5 px-2">
+                      {notifications.map((notif) => {
+                        const bookingId = notif.relatedBooking?._id || notif.relatedBooking;
+                        const isStillPending = notif.relatedBooking?.status === "pending";
+                        return (
+                          <div
+                            key={notif._id}
+                            className={`p-2.5 rounded-xl flex flex-col gap-1 transition-colors ${notif.status === "unread" ? "bg-blue-50/70" : "hover:bg-slate-50"}`}
+                          >
+                            <span className="font-bold text-[11px] text-blue-950 flex items-center gap-1.5">
+                              <span className="size-1.5 rounded-full bg-[#2b7fff]" />
+                              {notif.title}
+                            </span>
+                            <p className="text-zinc-600 text-[10px] leading-relaxed pl-3">
+                              {notif.message}
+                            </p>
+                            {notif.type === "BOOKING_CREATED" && bookingId && isStillPending && (
+                              <div className="flex gap-1.5 pl-3 mt-1">
+                                <button
+                                  onClick={() => handleRejectBooking(bookingId)}
+                                  className="bg-red-50 text-red-600 hover:bg-red-100 text-[10px] font-semibold py-1 px-3 rounded-lg border border-red-200 border-solid cursor-pointer transition-colors"
+                                >
+                                  Decline
+                                </button>
+                                <button
+                                  onClick={() => handleApproveBooking(bookingId)}
+                                  className="bg-green-600 hover:bg-green-700 text-white text-[10px] font-semibold py-1 px-3 rounded-lg border-none cursor-pointer transition-colors"
+                                >
+                                  Confirm ✓
+                                </button>
+                              </div>
+                            )}
+                            {notif.type === "BOOKING_CREATED" && bookingId && !isStillPending && (
+                              <span className="pl-3 text-[9px] text-zinc-400 italic">Already actioned</span>
+                            )}
+                            <span className="text-[8px] text-zinc-400 pl-3 mt-0.5">
+                              {new Date(notif.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="size-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-900 font-semibold text-lg shadow-sm">
                 {user?.firstname?.charAt(0).toUpperCase()}
               </div>
@@ -311,7 +410,7 @@ export default function Dashboard() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="border-l-primary shadow-sm border-black/5 border-t-0 border-r-0 border-b-0 border-l-4 border-solid p-4 gap-2">
               <CardContent className="flex p-0 justify-between items-center gap-2">
                 <div className="flex flex-col gap-1">
@@ -372,6 +471,22 @@ export default function Dashboard() {
                 </div>
                 <div className="size-10 rounded-xl bg-amber-500/10 flex justify-center items-center">
                   <Clock className="size-5 text-amber-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-violet-500 shadow-sm border-black/5 border-t-0 border-r-0 border-b-0 border-l-4 border-solid p-4 gap-2">
+              <CardContent className="flex p-0 justify-between items-center gap-2">
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium text-[#71717b] text-xs leading-4">
+                    Amenity Bookings
+                  </span>
+                  <span className="font-bold text-blue-900 text-2xl leading-8">
+                    {stats.amenityBookings ?? 0}
+                  </span>
+                </div>
+                <div className="size-10 rounded-xl bg-violet-500/10 flex justify-center items-center">
+                  <Zap className="size-5 text-violet-600" />
                 </div>
               </CardContent>
             </Card>
