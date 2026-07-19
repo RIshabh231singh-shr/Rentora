@@ -263,8 +263,8 @@ export default function Amenities() {
   };
 
   return (
-    <div className="bg-white text-zinc-950 flex w-full min-h-screen overflow-visible font-sans">
-      <aside className="shrink-0 min-h-screen bg-blue-900 text-white flex p-6 flex-col w-60">
+    <div className="bg-white text-zinc-950 flex w-full h-screen overflow-hidden font-sans">
+      <aside className="shrink-0 h-screen bg-blue-900 text-white flex p-6 flex-col w-60">
         <div className="flex mb-8 px-1 items-center gap-2">
           <div className="size-9 rounded-xl bg-white/15 flex justify-center items-center">
             <Building2 className="size-5 text-white" />
@@ -328,7 +328,7 @@ export default function Amenities() {
         </button>
       </aside>
 
-      <main className="min-h-screen bg-zinc-100 p-8 flex-1 overflow-y-auto">
+      <main className="h-screen bg-zinc-100 p-8 flex-1 overflow-y-auto">
         <div className="flex mb-6 justify-between items-start">
           <div className="flex flex-col gap-1">
             <h1 className="font-bold text-blue-900 text-2xl leading-8">
