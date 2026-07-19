@@ -27,6 +27,7 @@ app.use(cookieParser());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/properties", propertyRoutes);
+app.use("/properties", propertyRoutes);
 app.use("/api/amenities", amenityRoutes);
 app.use("/amenities", amenityRoutes);
 app.use("/api/bookings", bookingRoutes);
