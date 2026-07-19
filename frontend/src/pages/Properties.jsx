@@ -48,6 +48,7 @@ export default function Properties() {
     amenities: "",
     pricePerHour: "",
     securityDeposit: "",
+    rentType: "hourly"
   });
 
   // Selected property for viewing details
@@ -121,6 +122,7 @@ export default function Properties() {
       amenities: "",
       pricePerHour: "",
       securityDeposit: "",
+      rentType: "hourly"
     });
     setSelectedFiles([]);
     imagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
@@ -147,6 +149,7 @@ export default function Properties() {
       formData.append("amenities", newProperty.amenities);
       formData.append("pricePerHour", newProperty.pricePerHour);
       formData.append("securityDeposit", newProperty.securityDeposit);
+      formData.append("rentType", newProperty.rentType);
 
       selectedFiles.forEach((file) => {
         formData.append("images", file);
@@ -199,11 +202,11 @@ export default function Properties() {
   });
 
   return (
-    <div className="bg-white text-zinc-950 w-full min-h-screen flex overflow-visible font-sans">
-      <div className="min-h-screen flex w-full">
+    <div className="bg-white text-zinc-950 w-full h-screen flex overflow-hidden font-sans">
+      <div className="h-screen flex w-full">
         
         {/* Sidebar */}
-        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 min-h-screen">
+        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 h-screen">
           <div className="flex flex-col gap-8">
             <div className="flex px-2 items-center gap-2">
               <div className="size-9 rounded-xl bg-white/15 flex justify-center items-center">
@@ -259,9 +262,9 @@ export default function Properties() {
             <span>Logout</span>
           </button>
         </aside>
-
+ 
         {/* Main Content */}
-        <main className="bg-slate-50 flex p-8 flex-col flex-1 gap-6 min-h-screen overflow-y-auto">
+        <main className="bg-slate-50 flex p-8 flex-col flex-1 gap-6 h-screen overflow-y-auto">
           <div className="flex justify-between items-start">
             <div className="flex flex-col gap-1">
               <h1 className="font-bold text-blue-900 text-2xl leading-8">
@@ -354,7 +357,9 @@ export default function Properties() {
                         </div>
                         <div className="flex items-center gap-2">
                           <DollarSign className="size-4 text-[#71717b]" />
-                          <span className="text-zinc-700 text-xs font-medium">Price: ₹{prop.pricePerHour}/hr</span>
+                          <span className="text-zinc-700 text-xs font-medium">
+                            Price: ₹{prop.pricePerHour}/{prop.rentType === "monthly" ? "mo" : "hr"}
+                          </span>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1">
@@ -494,20 +499,33 @@ export default function Properties() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">Price per Hour (₹)</label>
+                  <label className="text-sm font-semibold text-zinc-700">Rent Type</label>
+                  <select
+                    className="w-full h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    value={newProperty.rentType}
+                    onChange={(e) => setNewProperty({ ...newProperty, rentType: e.target.value })}
+                  >
+                    <option value="hourly">Hourly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold text-zinc-700">
+                    {newProperty.rentType === "hourly" ? "Price per Hour (₹)" : "Price per Month (₹)"}
+                  </label>
                   <Input
                     required
                     type="number"
                     min="0"
                     value={newProperty.pricePerHour}
                     onChange={(e) => setNewProperty({ ...newProperty, pricePerHour: e.target.value })}
-                    placeholder="Hourly rental rate"
+                    placeholder={newProperty.rentType === "hourly" ? "Hourly rate" : "Monthly rate"}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">Security Deposit (₹)</label>
+                  <label className="text-sm font-semibold text-zinc-700">Deposit (₹)</label>
                   <Input
                     required
                     type="number"
@@ -668,9 +686,11 @@ export default function Properties() {
                   <span className="text-xs text-[#71717b] block">Capacity limit</span>
                   <span className="text-zinc-950 font-bold text-sm">{viewProperty.capacity} People</span>
                 </div>
-                <div>
-                  <span className="text-xs text-[#71717b] block">Hourly Rate</span>
-                  <span className="text-[#2b7fff] font-bold text-sm">₹{viewProperty.pricePerHour} / hour</span>
+                 <div>
+                  <span className="text-xs text-[#71717b] block">Rental Rate</span>
+                  <span className="text-[#2b7fff] font-bold text-sm">
+                    ₹{viewProperty.pricePerHour} / {viewProperty.rentType === "monthly" ? "month" : "hour"}
+                  </span>
                 </div>
                 <div>
                   <span className="text-xs text-[#71717b] block">Security Deposit</span>
