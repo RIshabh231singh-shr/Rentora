@@ -20,7 +20,7 @@ const {
 } = require("../controllers/propertymangement");
 
 // Landlord Routes
-router.post("/", landlordAuthMiddleware, upload.single("image"), createProperty);
+router.post("/", landlordAuthMiddleware, upload.array("images", 5), createProperty);
 router.get("/pending-requests", landlordAuthMiddleware, getPendingTenantRequests);
 router.patch("/:propertyId", landlordAuthMiddleware, updateProperty);
 router.delete("/:propertyId", landlordAuthMiddleware, deleteProperty);
