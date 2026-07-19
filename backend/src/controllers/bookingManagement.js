@@ -544,6 +544,175 @@ const getSlotAvailability = async (req, res) => {
 };
 
 
+// Book property hourly
+const bookProperty = async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const { propertyId, bookingStartTime, bookingEndTime } = req.body;
+
+        if (!propertyId || !bookingStartTime || !bookingEndTime) {
+            return res.status(422).json({
+                success: false,
+                message: "propertyId, bookingStartTime, and bookingEndTime are required"
+            });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+            return res.status(400).json({ success: false, message: "Invalid property ID" });
+        }
+
+        const start = new Date(bookingStartTime);
+        const end = new Date(bookingEndTime);
+
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            return res.status(422).json({ success: false, message: "Invalid date format" });
+        }
+
+        if (start >= end) {
+            return res.status(422).json({ success: false, message: "Start time must be before end time" });
+        }
+
+        if (start < new Date()) {
+            return res.status(422).json({ success: false, message: "Cannot book a slot in the past" });
+        }
+
+        // Verify property exists and is hourly
+        const property = await Property.findById(propertyId).lean();
+        if (!property) {
+            return res.status(404).json({ success: false, message: "Property not found" });
+        }
+
+        if (property.rentType !== "hourly") {
+            return res.status(400).json({ success: false, message: "This property is not available for hourly booking" });
+        }
+
+        // Prevent booking their own property
+        if (property.owner.toString() === req.user.id) {
+            return res.status(400).json({ success: false, message: "You cannot book your own property" });
+        }
+
+        // Check conflicts
+        const conflict = await Booking.findOne({
+            property: propertyId,
+            amenity: null,
+            status: { $in: ["booked", "checked_in"] },
+            $or: [
+                { bookingStartTime: { $lt: end }, bookingEndTime: { $gt: start } }
+            ]
+        }).lean();
+
+        if (conflict) {
+            return res.status(400).json({ success: false, message: "This time slot is already booked for this property" });
+        }
+
+        // Calculate amount
+        const durationHours = (end - start) / (1000 * 60 * 60);
+        const totalAmount = Math.ceil(durationHours * property.pricePerHour);
+
+        const booking = await Booking.create({
+            user: req.user.id,
+            property: propertyId,
+            bookingStartTime: start,
+            bookingEndTime: end,
+            totalAmount,
+            paymentStatus: "pending",
+            status: "booked"
+        });
+
+        // Fire notification
+        Notification.create({
+            recipient: property.owner,
+            type: "BOOKING_CREATED",
+            title: "New Property Booking",
+            message: `${req.user.email} has booked ${property.propertyName} from ${start.toLocaleString()} to ${end.toLocaleString()}`,
+            relatedProperty: propertyId,
+            status: "unread"
+        }).catch(err => console.error("Booking notification failed:", err));
+
+        // Trigger Socket.io real-time alert
+        if (global.io) {
+            global.io.to(property.owner.toString()).emit("notification", {
+                type: "BOOKING_CREATED",
+                title: "New Property Booking",
+                message: `${req.user.email} has booked ${property.propertyName} from ${start.toLocaleString()} to ${end.toLocaleString()}`,
+                relatedProperty: propertyId
+            });
+        }
+
+        return res.status(201).json({
+            success: true,
+            message: "Property booked successfully",
+            data: booking
+        });
+
+    } catch (err) {
+        console.error("bookProperty error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+
+// Get hourly property slot availability
+const getPropertySlotAvailability = async (req, res) => {
+    try {
+        const { propertyId } = req.params;
+        const { date } = req.query;
+
+        if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+            return res.status(400).json({ success: false, message: "Invalid property ID" });
+        }
+
+        if (!date) {
+            return res.status(422).json({ success: false, message: "date query parameter is required (YYYY-MM-DD)" });
+        }
+
+        const dayStart = new Date(date);
+        if (isNaN(dayStart.getTime())) {
+            return res.status(422).json({ success: false, message: "Invalid date format" });
+        }
+
+        const property = await Property.findById(propertyId).lean();
+        if (!property) {
+            return res.status(404).json({ success: false, message: "Property not found" });
+        }
+
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+
+        // Fetch bookings for this property on this day
+        const bookings = await Booking.find({
+            property: propertyId,
+            amenity: null,
+            status: { $in: ["booked", "checked_in"] },
+            bookingStartTime: { $gte: dayStart, $lt: dayEnd },
+        })
+            .select("bookingStartTime bookingEndTime user")
+            .populate("user", "firstname lastname email")
+            .lean();
+
+        return res.status(200).json({
+            success: true,
+            propertyId,
+            date,
+            propertyName: property.propertyName,
+            bookings: bookings.map(b => ({
+                bookingId: b._id,
+                startTime: b.bookingStartTime,
+                endTime: b.bookingEndTime,
+                user: b.user
+            }))
+        });
+
+    } catch (err) {
+        console.error("getPropertySlotAvailability error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+
 module.exports = {
     bookAmenity,
     getBookingsForAmenity,
@@ -553,4 +722,6 @@ module.exports = {
     checkOut,
     cancelBooking,
     getSlotAvailability,
+    bookProperty,
+    getPropertySlotAvailability,
 };
