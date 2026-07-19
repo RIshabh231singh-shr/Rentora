@@ -32,8 +32,8 @@ export default function Properties() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
 
   const [newProperty, setNewProperty] = useState({
     propertyName: "",
@@ -90,11 +90,20 @@ export default function Properties() {
   }, [user]);
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-      setImagePreview(URL.createObjectURL(file));
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...files]);
+      const newPreviews = files.map((file) => URL.createObjectURL(file));
+      setImagePreviews((prev) => [...prev, ...newPreviews]);
     }
+  };
+
+  const removeSelectedFile = (index) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleCloseCreateModal = () => {
@@ -113,11 +122,9 @@ export default function Properties() {
       pricePerHour: "",
       securityDeposit: "",
     });
-    setSelectedFile(null);
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-      setImagePreview(null);
-    }
+    setSelectedFiles([]);
+    imagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
+    setImagePreviews([]);
     setSubmitError("");
   };
 
@@ -141,9 +148,9 @@ export default function Properties() {
       formData.append("pricePerHour", newProperty.pricePerHour);
       formData.append("securityDeposit", newProperty.securityDeposit);
 
-      if (selectedFile) {
-        formData.append("image", selectedFile);
-      }
+      selectedFiles.forEach((file) => {
+        formData.append("images", file);
+      });
 
       const response = await api.post("/properties", formData, {
         headers: {
@@ -163,6 +170,12 @@ export default function Properties() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleViewProperty = (prop) => {
+    setViewProperty(prop);
+    setActiveImageIndex(0);
+    setIsViewModalOpen(true);
   };
 
   const handleLogout = async () => {
@@ -317,7 +330,7 @@ export default function Properties() {
                       <img
                         src={prop.images?.[0] || "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=600&q=80"}
                         alt={prop.propertyName}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain bg-[#f8fafc]"
                       />
                       <Badge className="absolute top-3 right-3 bg-blue-900/80 text-white font-medium border-transparent capitalize">
                         {prop.propertyType}
@@ -355,10 +368,7 @@ export default function Properties() {
                   </div>
                   <CardFooter className="p-5 pt-0">
                     <Button
-                      onClick={() => {
-                        setViewProperty(prop);
-                        setIsViewModalOpen(true);
-                      }}
+                      onClick={() => handleViewProperty(prop)}
                       className="w-full text-[#2b7fff] border-zinc-200 border border-solid gap-1.5 bg-white hover:bg-zinc-50 border-none cursor-pointer text-sm font-medium"
                     >
                       <Eye className="size-4" />
@@ -533,27 +543,28 @@ export default function Properties() {
 
               {/* Photo Upload */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-zinc-700">Property Photo (Optional)</label>
+                <label className="text-sm font-semibold text-zinc-700">Property Photos (Optional, max 5)</label>
                 <input
                   type="file"
+                  multiple
                   accept="image/*"
                   onChange={handleFileChange}
                   className="w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-[#2b7fff] hover:file:bg-blue-100 cursor-pointer"
                 />
-                {imagePreview && (
-                  <div className="mt-2 relative w-32 h-20 rounded-xl overflow-hidden border border-zinc-200 border-solid bg-slate-50">
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedFile(null);
-                        URL.revokeObjectURL(imagePreview);
-                        setImagePreview(null);
-                      }}
-                      className="absolute top-1 right-1 size-6 rounded-full bg-red-500 text-white flex items-center justify-center border-none font-bold text-xs cursor-pointer shadow-md hover:bg-red-600"
-                    >
-                      &times;
-                    </button>
+                {imagePreviews.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {imagePreviews.map((preview, index) => (
+                      <div key={index} className="relative w-24 h-16 rounded-xl overflow-hidden border border-zinc-200 border-solid bg-slate-50">
+                        <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeSelectedFile(index)}
+                          className="absolute top-0.5 right-0.5 size-5 rounded-full bg-red-500 text-white flex items-center justify-center border-none font-bold text-[10px] cursor-pointer shadow-md hover:bg-red-600"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -603,13 +614,30 @@ export default function Properties() {
             </div>
             
             <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1">
-              <div className="h-56 w-full bg-slate-100 overflow-hidden rounded-xl border border-zinc-200 border-solid">
-                <img
-                  src={viewProperty.images?.[0] || "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=600&q=80"}
-                  alt={viewProperty.propertyName}
-                  className="w-full h-full object-cover"
-                />
-              </div>
+             <div className="flex flex-col gap-2">
+               <div className="h-56 w-full bg-slate-100 overflow-hidden rounded-xl border border-zinc-200 border-solid flex justify-center items-center">
+                 <img
+                   src={(viewProperty.images && viewProperty.images.length > 0) ? viewProperty.images[activeImageIndex] : "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=600&q=80"}
+                   alt={viewProperty.propertyName}
+                   className="w-full h-full object-contain bg-[#f8fafc]"
+                 />
+               </div>
+               
+               {viewProperty.images && viewProperty.images.length > 1 && (
+                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                   {viewProperty.images.map((imgUrl, idx) => (
+                     <button
+                       key={idx}
+                       type="button"
+                       onClick={() => setActiveImageIndex(idx)}
+                       className={`size-16 rounded-lg overflow-hidden border-2 border-solid shrink-0 p-0 cursor-pointer ${activeImageIndex === idx ? "border-[#2b7fff]" : "border-zinc-200"}`}
+                     >
+                       <img src={imgUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                     </button>
+                   ))}
+                 </div>
+               )}
+             </div>
 
               <div className="flex justify-between items-center gap-4">
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 uppercase tracking-wide">
