@@ -2,6 +2,21 @@ const mongoose = require("mongoose");
 const Property = require("../models/property");
 const User = require("../models/user");
 const Notification = require("../models/notification");
+const cloudinary = require("../config/cloudinary");
+
+// Helper to stream file buffer to Cloudinary
+const uploadStream = (fileBuffer) => {
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            { folder: "rentora_properties" },
+            (error, result) => {
+                if (error) return reject(error);
+                resolve(result.secure_url);
+            }
+        );
+        stream.end(fileBuffer);
+    });
+};
 
 
 // POST /api/properties
@@ -11,7 +26,7 @@ const createProperty = async (req, res) => {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
 
-        const {
+        let {
             propertyName,
             propertyType,
             propertyAddress,
@@ -25,6 +40,21 @@ const createProperty = async (req, res) => {
             pricePerHour,
             securityDeposit,
         } = req.body;
+
+        // Parse fields sent via FormData multipart
+        if (pincode !== undefined && pincode !== "") pincode = Number(pincode);
+        if (capacity !== undefined && capacity !== "") capacity = Number(capacity);
+        if (pricePerHour !== undefined && pricePerHour !== "") pricePerHour = Number(pricePerHour);
+        if (securityDeposit !== undefined && securityDeposit !== "") securityDeposit = Number(securityDeposit);
+
+        if (typeof amenities === "string") {
+            try {
+                amenities = JSON.parse(amenities);
+            } catch (e) {
+                // Split by comma
+                amenities = amenities.split(",").map(a => a.trim()).filter(Boolean);
+            }
+        }
 
         const missingFields = [];
         const requiredFields = {
@@ -56,7 +86,7 @@ const createProperty = async (req, res) => {
             });
         }
 
-        const VALID_PROPERTY_TYPES = ["gym", "house", "villa", "swimmingpool", "commercial"];
+        const VALID_PROPERTY_TYPES = ["gym", "house", "villa", "swimmingpool", "commercial", "other"];
 
         if (typeof propertyName !== "string" || propertyName.trim().length < 3 || propertyName.trim().length > 50) {
             return res.status(422).json({ success: false, message: "propertyName must be between 3 and 50 characters" });
@@ -89,6 +119,25 @@ const createProperty = async (req, res) => {
             return res.status(422).json({ success: false, message: "securityDeposit must be a non-negative number" });
         }
 
+        let imageUrls = [];
+        if (req.file) {
+            const hasCloudinaryCredentials = process.env.CLOUDINARY_NAME && 
+                                             process.env.CLOUDINARY_KEY && 
+                                             process.env.CLOUDINARY_SECRET;
+            if (hasCloudinaryCredentials) {
+                try {
+                    const secureUrl = await uploadStream(req.file.buffer);
+                    imageUrls.push(secureUrl);
+                } catch (uploadErr) {
+                    console.error("Cloudinary property upload failed:", uploadErr);
+                    return res.status(500).json({ success: false, message: "Failed to upload property image to Cloudinary" });
+                }
+            } else {
+                console.warn("Cloudinary credentials missing, using placeholder image fallback.");
+                imageUrls.push("https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=600&q=80");
+            }
+        }
+
         const property = await Property.create({
             propertyName:    propertyName.trim(),
             propertyType,
@@ -102,7 +151,13 @@ const createProperty = async (req, res) => {
             amenities,
             pricePerHour,
             securityDeposit,
+            images:          imageUrls,
             owner:           req.user.id,
+        });
+
+        // Add property to owner's myProperties list
+        await User.findByIdAndUpdate(req.user.id, {
+            $addToSet: { myProperties: property._id }
         });
 
         return res.status(201).json({
@@ -332,17 +387,21 @@ const deleteProperty = async (req, res) => {
 // GET /api/properties
 const getAllProperties = async (req, res) => {
     try {
-        const { city, propertyType, minPrice, maxPrice, country, state } = req.query;
+        const { city, propertyType, minPrice, maxPrice, country, state, myProperties } = req.query;
 
         // ── 1. Build filter ───────────────────────────────────────────
         const filter = {};
+
+        if (myProperties === "true" && req.user?.id) {
+            filter.owner = req.user.id;
+        }
 
         if (city)         filter.city         = new RegExp(city.trim(), "i");
         if (state)        filter.state        = new RegExp(state.trim(), "i");
         if (country)      filter.country      = new RegExp(country.trim(), "i");
 
         if (propertyType) {
-            const VALID_TYPES = ["gym", "house", "villa", "swimmingpool", "commercial"];
+            const VALID_TYPES = ["gym", "house", "villa", "swimmingpool", "commercial", "other"];
             if (!VALID_TYPES.includes(propertyType)) {
                 return res.status(422).json({
                     success: false,
