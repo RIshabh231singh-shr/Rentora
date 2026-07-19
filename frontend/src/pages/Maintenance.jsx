@@ -30,6 +30,14 @@ export default function Maintenance() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
+  // File upload state
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
+  // Detailed view state
+  const [viewRequest, setViewRequest] = useState(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
   const fetchRequests = async () => {
     try {
       setLoading(true);
@@ -59,14 +67,51 @@ export default function Maintenance() {
     }
   }, [user]);
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleCloseCreateModal = () => {
+    setIsModalOpen(false);
+    setNewRequest({ title: "", description: "", category: "plumbing" });
+    setSelectedFile(null);
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+      setImagePreview(null);
+    }
+    setSubmitError("");
+  };
+
   const handleCreateRequest = async (e) => {
     e.preventDefault();
     setSubmitError("");
     setSubmitting(true);
     try {
-      await api.post("/maintenance", newRequest);
+      const formData = new FormData();
+      formData.append("title", newRequest.title);
+      formData.append("description", newRequest.description);
+      formData.append("category", newRequest.category);
+      if (selectedFile) {
+        formData.append("image", selectedFile);
+      }
+
+      await api.post("/maintenance", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
       setIsModalOpen(false);
       setNewRequest({ title: "", description: "", category: "plumbing" });
+      setSelectedFile(null);
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+        setImagePreview(null);
+      }
       fetchRequests();
     } catch (err) {
       console.error("Error creating request:", err);
@@ -74,6 +119,11 @@ export default function Maintenance() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleViewRequest = (req) => {
+    setViewRequest(req);
+    setIsViewModalOpen(true);
   };
 
   const handleLogout = async () => {
@@ -279,6 +329,7 @@ export default function Maintenance() {
                             className="text-[#2b7fff] border-zinc-200 border border-solid gap-1.5 bg-white hover:bg-zinc-50 border-none cursor-pointer"
                             size="sm"
                             variant="outline"
+                            onClick={() => handleViewRequest(req)}
                           >
                             <Eye className="size-3.5" />
                             View
@@ -342,7 +393,7 @@ export default function Maintenance() {
                 New Maintenance Request
               </h2>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={handleCloseCreateModal}
                 className="text-zinc-400 hover:text-zinc-600 border-none bg-transparent cursor-pointer text-2xl font-bold"
               >
                 &times;
@@ -386,13 +437,42 @@ export default function Maintenance() {
                   placeholder="Please detail the issue..."
                 />
               </div>
+              
+              {/* Image Upload Input */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-zinc-700">Attach Photo (Optional)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-[#2b7fff] hover:file:bg-blue-100 cursor-pointer"
+                />
+                {imagePreview && (
+                  <div className="mt-2 relative w-32 h-32 rounded-xl overflow-hidden border border-zinc-200 border-solid bg-slate-50">
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        URL.revokeObjectURL(imagePreview);
+                        setImagePreview(null);
+                      }}
+                      className="absolute top-1 right-1 size-6 rounded-full bg-red-500 text-white flex items-center justify-center border-none font-bold text-xs cursor-pointer shadow-md hover:bg-red-600"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {submitError && <p className="text-red-600 text-xs">{submitError}</p>}
+              
               <div className="flex justify-end gap-2 mt-2">
                 <Button
                   type="button"
                   variant="outline"
                   className="border-zinc-200 cursor-pointer border border-solid bg-transparent text-zinc-700 hover:bg-zinc-50"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleCloseCreateModal}
                 >
                   Cancel
                 </Button>
@@ -405,6 +485,110 @@ export default function Maintenance() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Request Details Modal */}
+      {isViewModalOpen && viewRequest && (
+        <div className="fixed inset-0 bg-black/55 z-55 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl flex flex-col gap-4 border border-zinc-200 border-solid animate-in fade-in duration-200">
+            <div className="flex justify-between items-center border-b border-zinc-100 pb-3">
+              <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
+                <Wrench className="size-5 text-[#2b7fff]" />
+                Request Details
+              </h2>
+              <button
+                onClick={() => {
+                  setIsViewModalOpen(false);
+                  setViewRequest(null);
+                }}
+                className="text-zinc-400 hover:text-zinc-600 border-none bg-transparent cursor-pointer text-2xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1">
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 uppercase tracking-wide">
+                  {viewRequest.category}
+                </span>
+                <span className={`font-semibold rounded-full text-xs leading-4 px-2.5 py-1 ${
+                  viewRequest.status === "pending" ? "bg-red-100 text-red-700" :
+                  viewRequest.status === "in_progress" ? "bg-amber-100 text-amber-700" :
+                  (viewRequest.status === "resolved" || viewRequest.status === "completed") ? "bg-emerald-100 text-emerald-700" :
+                  "bg-zinc-100 text-zinc-700"
+                }`}>
+                  {viewRequest.status === "in_progress" ? "In Progress" : 
+                   (viewRequest.status === "resolved" || viewRequest.status === "completed") ? "Completed" : 
+                   viewRequest.status.charAt(0).toUpperCase() + viewRequest.status.slice(1)}
+                </span>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-bold text-zinc-950">{viewRequest.title}</h3>
+                <p className="text-xs text-[#71717b] mt-1">
+                  Submitted on {new Date(viewRequest.createdAt).toLocaleString()}
+                </p>
+                {viewRequest.property && (
+                  <p className="text-xs text-[#71717b] mt-0.5">
+                    Property: <span className="font-semibold text-zinc-700">{viewRequest.property.propertyName || "Assigned Property"}</span>
+                  </p>
+                )}
+              </div>
+              
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-semibold text-zinc-700">Description</span>
+                <p className="text-sm text-zinc-600 bg-slate-50 p-3 rounded-lg border border-solid border-zinc-100 whitespace-pre-wrap">
+                  {viewRequest.description}
+                </p>
+              </div>
+
+              {viewRequest.images && viewRequest.images.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-semibold text-zinc-700">Attachment</span>
+                  <div className="rounded-lg overflow-hidden border border-zinc-200 border-solid max-h-64 flex justify-center bg-slate-50 p-2">
+                    <img
+                      src={viewRequest.images[0]}
+                      alt="Attachment Preview"
+                      className="max-w-full max-h-64 object-contain rounded-lg"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {viewRequest.status === "resolved" && (
+                <div className="flex flex-col gap-1 border-t border-zinc-100 pt-3">
+                  <span className="text-sm font-semibold text-zinc-700">Resolution Notes</span>
+                  {viewRequest.resolutionNotes ? (
+                    <p className="text-sm text-green-700 bg-green-50/50 p-3 rounded-lg border border-solid border-green-100">
+                      {viewRequest.resolutionNotes}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-green-600 italic">No notes provided by staff.</p>
+                  )}
+                  {viewRequest.resolvedAt && (
+                    <span className="text-xs text-[#71717b]">
+                      Resolved at: {new Date(viewRequest.resolvedAt).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end gap-2 border-t border-zinc-100 pt-3 mt-2">
+              <Button
+                type="button"
+                className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 cursor-pointer border-none"
+                onClick={() => {
+                  setIsViewModalOpen(false);
+                  setViewRequest(null);
+                }}
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}
