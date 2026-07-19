@@ -178,6 +178,13 @@ export default function Maintenance() {
                 </Link>
               )}
               <Link
+                to="/explore"
+                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
+              >
+                <Search className="size-4" />
+                <span>Find Properties</span>
+              </Link>
+              <Link
                 to="/maintenance"
                 className="shadow-sm font-semibold rounded-lg bg-[#2b7fff] text-blue-50 text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
               >
