@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import api from "../utility/axiosInstance";
 import LeftPanel from "../components/LeftPanel";
+import GoogleAuth from "../components/GoogleAuth";
 
 // Premium Custom Google Icon
 const GoogleIcon = (props) => (
@@ -76,7 +77,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await api.post("/auth/login", {
+      const response = await api.post("/api/auth/login", {
         email: data.email,
         password: data.password,
       });
@@ -89,14 +90,17 @@ export default function Login() {
       }, 1000);
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || "Invalid email or password");
+      if (err.response?.status === 403 && err.response?.data?.requiresVerification) {
+        setError(err.response.data.message || "Account not verified. Redirecting...");
+        setTimeout(() => {
+          navigate("/verify-email", { state: { email: data.email } });
+        }, 1500);
+      } else {
+        setError(err.response?.data?.message || "Invalid email or password");
+      }
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleSignIn = () => {
-    setError("Google Sign-In is not configured yet. Please use the email and password form.");
   };
 
   const handleForgotPassword = (e) => {
@@ -261,14 +265,17 @@ export default function Login() {
               </div>
 
               {/* Google Button */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                className="bg-white text-zinc-950 border border-zinc-200 border-solid hover:bg-zinc-50 w-full py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all text-sm shadow-sm"
-              >
-                <GoogleIcon className="size-4 shrink-0" />
-                Continue with Google
-              </button>
+              <GoogleAuth
+                onSuccess={(userData) => {
+                  setSuccess("Logged in successfully! Redirecting...");
+                  localStorage.setItem("user", JSON.stringify(userData));
+                  setTimeout(() => {
+                    navigate("/");
+                  }, 1000);
+                }}
+                onError={(errMsg) => setError(errMsg)}
+                text="signin_with"
+              />
             </form>
 
             {/* Footer switcher text */}

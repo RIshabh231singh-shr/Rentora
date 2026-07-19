@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import api from "../utility/axiosInstance";
 import LeftPanel from "../components/LeftPanel";
+import GoogleAuth from "../components/GoogleAuth";
 
 // Premium Custom Google Icon
 const GoogleIcon = (props) => (
@@ -117,24 +118,26 @@ export default function Register() {
         password: data.password,
       };
 
-      const response = await api.post("/auth/register", payload);
-      setSuccess("Account created successfully! Redirecting...");
+      const response = await api.post("/api/auth/register", payload);
       
-      localStorage.setItem("user", JSON.stringify(response.data.userData));
-      
-      setTimeout(() => {
-        navigate("/");
-      }, 1500);
+      if (response.data.requiresVerification) {
+        setSuccess(response.data.message || "Registration successful! Redirecting to verification...");
+        setTimeout(() => {
+          navigate("/verify-email", { state: { email: data.email } });
+        }, 1500);
+      } else {
+        setSuccess("Account created successfully! Redirecting...");
+        localStorage.setItem("user", JSON.stringify(response.data.userData));
+        setTimeout(() => {
+          navigate("/");
+        }, 1550);
+      }
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || "Registration failed. Please check inputs.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleSignIn = () => {
-    setError("Google Sign-In is not configured yet. Please use the email and password form.");
   };
 
   const roles = [
@@ -377,14 +380,17 @@ export default function Register() {
               </div>
 
               {/* Google Button */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                className="bg-white text-zinc-950 border border-zinc-200 border-solid hover:bg-zinc-50 w-full py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all text-sm shadow-sm"
-              >
-                <GoogleIcon className="size-4 shrink-0" />
-                Continue with Google
-              </button>
+              <GoogleAuth
+                onSuccess={(userData) => {
+                  setSuccess("Account created successfully! Redirecting...");
+                  localStorage.setItem("user", JSON.stringify(userData));
+                  setTimeout(() => {
+                    navigate("/");
+                  }, 1550);
+                }}
+                onError={(errMsg) => setError(errMsg)}
+                text="signup_with"
+              />
 
               {/* Role Selection */}
               <div className="flex flex-col gap-2 mt-2">
