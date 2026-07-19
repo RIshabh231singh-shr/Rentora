@@ -99,6 +99,15 @@ export default function Dashboard() {
                 <LayoutDashboard className="size-4" />
                 Dashboard
               </Link>
+              {(user?.role === "landlord" || user?.role === "admin") && (
+                <Link
+                  to="/properties"
+                  className="font-medium rounded-full text-blue-100/80 hover:text-white text-sm leading-5 flex px-4 py-2.5 items-center gap-2 transition-colors"
+                >
+                  <Building2 className="size-4" />
+                  Properties
+                </Link>
+              )}
               <Link
                 to="/maintenance"
                 className="font-medium rounded-full text-blue-100/80 hover:text-white text-sm leading-5 flex px-4 py-2.5 items-center gap-2 transition-colors"
