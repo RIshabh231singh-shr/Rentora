@@ -280,6 +280,15 @@ export default function Amenities() {
             <LayoutDashboard className="size-4" />
             Dashboard
           </Link>
+          {(user?.role === "landlord" || user?.role === "admin") && (
+            <Link
+              to="/properties"
+              className="transition-colors rounded-lg text-white/70 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
+            >
+              <Building2 className="size-4" />
+              My Properties
+            </Link>
+          )}
           <Link
             to="/maintenance"
             className="transition-colors rounded-lg text-white/70 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
