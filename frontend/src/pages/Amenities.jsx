@@ -21,6 +21,7 @@ import {
   Waves,
   Wrench,
   Zap,
+  Search,
 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "../components/ui";
 import api from "../utility/axiosInstance";
@@ -289,6 +290,13 @@ export default function Amenities() {
               My Properties
             </Link>
           )}
+          <Link
+            to="/explore"
+            className="transition-colors rounded-lg text-white/70 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
+          >
+            <Search className="size-4" />
+            Find Properties
+          </Link>
           <Link
             to="/maintenance"
             className="transition-colors rounded-lg text-white/70 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
