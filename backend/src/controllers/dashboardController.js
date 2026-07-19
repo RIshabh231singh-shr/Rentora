@@ -1,6 +1,8 @@
 const MaintenanceRequest = require("../models/maintainanceRequest");
 const Booking = require("../models/booking");
 const Property = require("../models/property");
+const Notification = require("../models/notification");
+const Amenity = require("../models/amenity");
 
 const getDashboardData = async (req, res) => {
     try {
@@ -13,6 +15,7 @@ const getDashboardData = async (req, res) => {
         let upcomingBookingsCount = 0;
         let currentBookingName = "None";
         let upcomingBookingsList = [];
+        let amenityBookingsCount = 0;
 
         if (req.user.role === "tenant") {
             // Active requests: pending, assigned, in_progress
@@ -68,6 +71,13 @@ const getDashboardData = async (req, res) => {
             var rentedProperties = await Property.find({
                 tenants: userId
             }).populate("owner", "firstname lastname email phoneNumber").lean();
+
+            // Amenity bookings count
+            amenityBookingsCount = await Booking.countDocuments({
+                user: userId,
+                amenity: { $ne: null },
+                status: { $in: ["booked", "checked_in"] }
+            });
         } else if (req.user.role === "landlord") {
             const landlordProperties = await Property.find({ owner: req.user._id }).select("_id");
             const propertyIds = landlordProperties.map(p => p._id);
@@ -86,6 +96,14 @@ const getDashboardData = async (req, res) => {
             recentRequests = await MaintenanceRequest.find({ property: { $in: propertyIds } })
                 .sort({ createdAt: -1 })
                 .limit(3);
+
+            // Amenity bookings for landlord's properties
+            const landlordAmenities = await Amenity.find({ property: { $in: propertyIds } }).select("_id");
+            const amenityIds = landlordAmenities.map(a => a._id);
+            amenityBookingsCount = await Booking.countDocuments({
+                amenity: { $in: amenityIds },
+                status: { $in: ["booked", "checked_in", "completed"] }
+            });
 
             var pendingBookings = await Booking.find({
                 property: { $in: propertyIds },
@@ -118,18 +136,26 @@ const getDashboardData = async (req, res) => {
                 .limit(3);
         }
 
+        const notificationsList = await Notification.find({ recipient: req.user._id })
+            .populate("relatedBooking", "_id status")
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean();
+
         res.status(200).json({
             stats: {
                 activeRequests: activeRequestsCount,
                 completedRequests: completedRequestsCount,
                 upcomingBookings: upcomingBookingsCount,
-                currentBooking: currentBookingName
+                currentBooking: currentBookingName,
+                amenityBookings: amenityBookingsCount
             },
             recentRequests,
             upcomingBookingsList,
             rentedProperties: typeof rentedProperties !== "undefined" ? rentedProperties : [],
             pendingBookings: typeof pendingBookings !== "undefined" ? pendingBookings : [],
-            pendingLeases: typeof pendingLeases !== "undefined" ? pendingLeases : []
+            pendingLeases: typeof pendingLeases !== "undefined" ? pendingLeases : [],
+            notifications: notificationsList || []
         });
     } catch (err) {
         console.error("getDashboardData error:", err);
@@ -137,6 +163,20 @@ const getDashboardData = async (req, res) => {
     }
 };
 
+const markNotificationsAsRead = async (req, res) => {
+    try {
+        await Notification.updateMany(
+            { recipient: req.user._id, status: "unread" },
+            { $set: { status: "read" } }
+        );
+        return res.status(200).json({ success: true, message: "Notifications marked as read" });
+    } catch (err) {
+        console.error("markNotificationsAsRead error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
 module.exports = {
-    getDashboardData
+    getDashboardData,
+    markNotificationsAsRead
 };
