@@ -9,6 +9,8 @@ const authRoutes = require("./routes/auth");
 const propertyRoutes = require("./routes/properties");
 const amenityRoutes = require("./routes/amenities");
 const bookingRoutes = require("./routes/bookings");
+const maintenanceRoutes = require("./routes/maintenance");
+const dashboardRoutes = require("./routes/dashboard");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -26,7 +28,13 @@ app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/properties", propertyRoutes);
 app.use("/api/amenities", amenityRoutes);
+app.use("/amenities", amenityRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/bookings", bookingRoutes);
+app.use("/api/maintenance", maintenanceRoutes);
+app.use("/maintenance", maintenanceRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/dashboard", dashboardRoutes);
 
 const initializeConnection = async () => {
     try {
@@ -58,3 +66,5 @@ const initializeConnection = async () => {
 };
 
 initializeConnection();
+
+// Loaded new env variables for email
