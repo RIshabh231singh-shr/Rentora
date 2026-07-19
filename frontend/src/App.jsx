@@ -200,6 +200,8 @@ function Profile() {
   );
 }
 
+import VerifyEmail from "./pages/VerifyEmail";
+
 function App() {
   return (
     <Router>
@@ -207,6 +209,7 @@ function App() {
         <Route path="/" element={<HomeRoute />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/amenities" element={<Amenities />} />
         <Route path="/profile" element={<Profile />} />
