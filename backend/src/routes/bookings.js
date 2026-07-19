@@ -12,14 +12,18 @@ const {
     checkOut,
     cancelBooking,
     getSlotAvailability,
+    bookProperty,
+    getPropertySlotAvailability,
 } = require("../controllers/bookingManagement");
 
 
 router.post("/book", tenantAuthMiddleware, bookAmenity);
+router.post("/property/book", tenantAuthMiddleware, bookProperty);
 router.get("/my", tenantAuthMiddleware, getMyBookings);
 
 
 router.get("/amenity/:amenityId/availability", tenantAuthMiddleware, getSlotAvailability);
+router.get("/property/:propertyId/availability", tenantAuthMiddleware, getPropertySlotAvailability);
 
 
 router.get("/amenity/:amenityId", tenantAuthMiddleware, getBookingsForAmenity);
