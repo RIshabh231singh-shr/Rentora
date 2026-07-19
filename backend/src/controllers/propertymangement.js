@@ -588,6 +588,16 @@ const addTenantToProperty = async (req, res) => {
                 relatedProperty: propertyId,
                 relatedUser: tenantId,
                 status: "unread"
+            }).then(() => {
+                if (global.io) {
+                    global.io.to(property.owner.toString()).emit("notification", {
+                        type: "TENANT_REQUEST",
+                        title: "New Tenant Request",
+                        message: `${user.name || user.email} has requested to join ${property.propertyAddress}`,
+                        relatedProperty: propertyId,
+                        relatedUser: tenantId
+                    });
+                }
             }).catch(err => console.error("Notification failed:", err));
 
             return res.status(200).json({
