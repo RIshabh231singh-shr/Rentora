@@ -146,11 +146,11 @@ export default function Maintenance() {
   });
 
   return (
-    <div className="bg-white text-zinc-950 w-full min-h-screen flex overflow-visible font-sans">
-      <div className="min-h-screen flex w-full">
+    <div className="bg-white text-zinc-950 w-full h-screen flex overflow-hidden font-sans">
+      <div className="h-screen flex w-full">
         
         {/* Sidebar */}
-        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 min-h-screen">
+        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 h-screen">
           <div className="flex flex-col gap-8">
             <div className="flex px-2 items-center gap-2">
               <div className="size-9 rounded-xl bg-white/15 flex justify-center items-center">
@@ -217,7 +217,7 @@ export default function Maintenance() {
         </aside>
 
         {/* Main Content */}
-        <main className="bg-slate-50 flex p-8 flex-col flex-1 gap-6 min-h-screen overflow-y-auto">
+        <main className="bg-slate-50 flex p-8 flex-col flex-1 gap-6 h-screen overflow-y-auto">
           <div className="flex justify-between items-start">
             <div className="flex flex-col gap-1">
               <h1 className="font-bold text-blue-900 text-2xl leading-8">
