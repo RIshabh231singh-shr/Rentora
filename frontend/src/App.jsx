@@ -201,6 +201,7 @@ function Profile() {
 }
 
 import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
 
 function App() {
   return (
@@ -210,6 +211,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/amenities" element={<Amenities />} />
         <Route path="/profile" element={<Profile />} />
