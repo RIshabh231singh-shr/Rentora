@@ -105,7 +105,7 @@ export default function Login() {
 
   const handleForgotPassword = (e) => {
     e.preventDefault();
-    setError("Password reset is not configured yet. Please contact support or try a different account.");
+    navigate("/forgot-password");
   };
 
   return (
