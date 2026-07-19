@@ -4,7 +4,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const redisClient = require("../config/redis");
 const { OAuth2Client } = require("google-auth-library");
-const { generateOtp, sendOtpEmail, saveOtp, verifyOtpValue, deleteOtp } = require("../utilities/otpService");
+const { generateOtp, sendOtpEmail, saveOtp, verifyOtpValue, deleteOtp, sendResetPasswordEmail } = require("../utilities/otpService");
 
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -575,6 +575,73 @@ const googleRegister = async (req, res) => {
     }
 };
 
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const cooldownKey = `otp_cooldown:${email.toLowerCase().trim()}`;
+        const isOnCooldown = await redisClient.get(cooldownKey);
+        if (isOnCooldown) {
+            return res.status(429).json({ message: "Please wait 60 seconds before requesting a new OTP." });
+        }
+
+        const otp = generateOtp();
+        await saveOtp(email, otp);
+        await sendResetPasswordEmail(email, otp);
+        await redisClient.set(cooldownKey, "active", { EX: 60 });
+
+        return res.status(200).json({
+            message: "Password reset OTP has been sent to your email.",
+        });
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+};
+
+const resetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: "Email, OTP, and new password are required" });
+        }
+        
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters" });
+        }
+
+        const isValid = await verifyOtpValue(email, otp);
+        if (!isValid) {
+            return res.status(400).json({ message: "Invalid or expired OTP" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.isVerified = true;
+        await user.save();
+        
+        await deleteOtp(email);
+        await blacklistTokens(req);
+
+        return res.status(200).json({
+            message: "Password has been reset successfully. Please login with your new password.",
+        });
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+};
+
 module.exports = {
     registerUser,
     loginUser,
@@ -583,6 +650,8 @@ module.exports = {
     getProfile,
     verifyOtp,
     resendOtp,
+    forgotPassword,
+    resetPassword,
     googleLogin,
     googleRegister
 };
