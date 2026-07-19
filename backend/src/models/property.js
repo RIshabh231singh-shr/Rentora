@@ -77,6 +77,11 @@ const PropertySchema = new Schema({
         required : true,
         min : 0
     },
+    rentType : {
+        type : String,
+        enum : ["hourly", "monthly"],
+        default : "hourly"
+    },
     securityDeposit : {
         type : Number,
         required : true,
