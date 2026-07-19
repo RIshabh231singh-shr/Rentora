@@ -168,6 +168,15 @@ export default function Maintenance() {
                 <LayoutDashboard className="size-4" />
                 <span>Dashboard</span>
               </Link>
+              {(user?.role === "landlord" || user?.role === "admin") && (
+                <Link
+                  to="/properties"
+                  className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
+                >
+                  <Building2 className="size-4" />
+                  <span>My Properties</span>
+                </Link>
+              )}
               <Link
                 to="/maintenance"
                 className="shadow-sm font-semibold rounded-lg bg-[#2b7fff] text-blue-50 text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
@@ -232,25 +241,29 @@ export default function Maintenance() {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                className={`rounded-full px-4 cursor-pointer transition-colors border-none ${selectedStatus === "all" ? "bg-[#2b7fff] text-blue-50 hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border border-solid border-zinc-200 hover:bg-zinc-100"}`}
+                variant="none"
+                className={`rounded-full px-4 cursor-pointer transition-colors border border-solid ${selectedStatus === "all" ? "bg-[#2b7fff] text-white border-transparent hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-100"}`}
                 onClick={() => setSelectedStatus("all")}
               >
                 All
               </Button>
               <Button
-                className={`rounded-full px-4 cursor-pointer transition-colors border-none ${selectedStatus === "pending" ? "bg-[#2b7fff] text-blue-50 hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border border-solid border-zinc-200 hover:bg-zinc-100"}`}
+                variant="none"
+                className={`rounded-full px-4 cursor-pointer transition-colors border border-solid ${selectedStatus === "pending" ? "bg-[#2b7fff] text-white border-transparent hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-100"}`}
                 onClick={() => setSelectedStatus("pending")}
               >
                 Pending
               </Button>
               <Button
-                className={`rounded-full px-4 cursor-pointer transition-colors border-none ${selectedStatus === "in_progress" ? "bg-[#2b7fff] text-blue-50 hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border border-solid border-zinc-200 hover:bg-zinc-100"}`}
+                variant="none"
+                className={`rounded-full px-4 cursor-pointer transition-colors border border-solid ${selectedStatus === "in_progress" ? "bg-[#2b7fff] text-white border-transparent hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-100"}`}
                 onClick={() => setSelectedStatus("in_progress")}
               >
                 In Progress
               </Button>
               <Button
-                className={`rounded-full px-4 cursor-pointer transition-colors border-none ${selectedStatus === "resolved" ? "bg-[#2b7fff] text-blue-50 hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border border-solid border-zinc-200 hover:bg-zinc-100"}`}
+                variant="none"
+                className={`rounded-full px-4 cursor-pointer transition-colors border border-solid ${selectedStatus === "resolved" ? "bg-[#2b7fff] text-white border-transparent hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-100"}`}
                 onClick={() => setSelectedStatus("resolved")}
               >
                 Completed
