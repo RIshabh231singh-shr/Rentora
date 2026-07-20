@@ -82,6 +82,18 @@ const PropertySchema = new Schema({
         enum : ["hourly", "monthly"],
         default : "hourly"
     },
+    openingHour : {
+        type : Number,
+        default : 8,
+        min : 0,
+        max : 23
+    },
+    closingHour : {
+        type : Number,
+        default : 22,
+        min : 0,
+        max : 23
+    },
     securityDeposit : {
         type : Number,
         required : true,

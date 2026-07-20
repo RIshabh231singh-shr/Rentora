@@ -551,12 +551,12 @@ const bookProperty = async (req, res) => {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
 
-        const { propertyId, bookingStartTime, bookingEndTime } = req.body;
+        const { propertyId, bookingStartTime, bookingEndTime, durationMonths, startDate } = req.body;
 
-        if (!propertyId || !bookingStartTime || !bookingEndTime) {
+        if (!propertyId) {
             return res.status(422).json({
                 success: false,
-                message: "propertyId, bookingStartTime, and bookingEndTime are required"
+                message: "propertyId is required"
             });
         }
 
@@ -564,53 +564,68 @@ const bookProperty = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid property ID" });
         }
 
-        const start = new Date(bookingStartTime);
-        const end = new Date(bookingEndTime);
-
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-            return res.status(422).json({ success: false, message: "Invalid date format" });
-        }
-
-        if (start >= end) {
-            return res.status(422).json({ success: false, message: "Start time must be before end time" });
-        }
-
-        if (start < new Date()) {
-            return res.status(422).json({ success: false, message: "Cannot book a slot in the past" });
-        }
-
-        // Verify property exists and is hourly
-        const property = await Property.findById(propertyId).lean();
+        // Verify property exists
+        const property = await Property.findById(propertyId);
         if (!property) {
             return res.status(404).json({ success: false, message: "Property not found" });
         }
 
-        if (property.rentType !== "hourly") {
-            return res.status(400).json({ success: false, message: "This property is not available for hourly booking" });
-        }
-
         // Prevent booking their own property
         if (property.owner.toString() === req.user.id) {
-            return res.status(400).json({ success: false, message: "You cannot book your own property" });
+            return res.status(400).json({ success: false, message: "You cannot rent your own property" });
         }
 
-        // Check conflicts
-        const conflict = await Booking.findOne({
-            property: propertyId,
-            amenity: null,
-            status: { $in: ["booked", "checked_in"] },
-            $or: [
-                { bookingStartTime: { $lt: end }, bookingEndTime: { $gt: start } }
-            ]
-        }).lean();
+        let start, end, totalAmount;
 
-        if (conflict) {
-            return res.status(400).json({ success: false, message: "This time slot is already booked for this property" });
+        if (property.rentType === "monthly") {
+            if (!durationMonths || isNaN(durationMonths) || durationMonths < 1) {
+                return res.status(400).json({ success: false, message: "Lease duration in months is required" });
+            }
+            start = startDate ? new Date(startDate) : new Date();
+            end = new Date(start);
+            end.setMonth(end.getMonth() + Number(durationMonths));
+            totalAmount = property.pricePerHour * Number(durationMonths);
+        } else {
+            // Hourly booking logic
+            if (!bookingStartTime || !bookingEndTime) {
+                return res.status(422).json({
+                    success: false,
+                    message: "bookingStartTime and bookingEndTime are required for hourly bookings"
+                });
+            }
+
+            start = new Date(bookingStartTime);
+            end = new Date(bookingEndTime);
+
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                return res.status(422).json({ success: false, message: "Invalid date format" });
+            }
+
+            if (start >= end) {
+                return res.status(422).json({ success: false, message: "Start time must be before end time" });
+            }
+
+            if (start < new Date()) {
+                return res.status(422).json({ success: false, message: "Cannot book a slot in the past" });
+            }
+
+            // Check conflicts
+            const conflict = await Booking.findOne({
+                property: propertyId,
+                amenity: null,
+                status: { $in: ["booked", "checked_in"] },
+                $or: [
+                    { bookingStartTime: { $lt: end }, bookingEndTime: { $gt: start } }
+                ]
+            }).lean();
+
+            if (conflict) {
+                return res.status(400).json({ success: false, message: "This time slot is already booked for this property" });
+            }
+
+            const durationHours = (end - start) / (1000 * 60 * 60);
+            totalAmount = Math.ceil(durationHours * property.pricePerHour);
         }
-
-        // Calculate amount
-        const durationHours = (end - start) / (1000 * 60 * 60);
-        const totalAmount = Math.ceil(durationHours * property.pricePerHour);
 
         const booking = await Booking.create({
             user: req.user.id,
@@ -626,9 +641,10 @@ const bookProperty = async (req, res) => {
         Notification.create({
             recipient: property.owner,
             type: "BOOKING_CREATED",
-            title: "New Property Booking",
-            message: `${req.user.email} has booked ${property.propertyName} from ${start.toLocaleString()} to ${end.toLocaleString()}`,
+            title: "New Booking Request",
+            message: `${req.user.email} has requested to rent ${property.propertyName} from ${start.toLocaleDateString()} to ${end.toLocaleDateString()}`,
             relatedProperty: propertyId,
+            relatedBooking: booking._id,
             status: "unread"
         }).catch(err => console.error("Booking notification failed:", err));
 
@@ -636,15 +652,15 @@ const bookProperty = async (req, res) => {
         if (global.io) {
             global.io.to(property.owner.toString()).emit("notification", {
                 type: "BOOKING_CREATED",
-                title: "New Property Booking",
-                message: `${req.user.email} has booked ${property.propertyName} from ${start.toLocaleString()} to ${end.toLocaleString()}`,
+                title: "New Booking Request",
+                message: `${req.user.email} has requested to rent ${property.propertyName} from ${start.toLocaleDateString()} to ${end.toLocaleDateString()}`,
                 relatedProperty: propertyId
             });
         }
 
         return res.status(201).json({
             success: true,
-            message: "Property booked successfully",
+            message: "Booking request submitted successfully",
             data: booking
         });
 
@@ -733,6 +749,12 @@ const approveBooking = async (req, res) => {
 
         booking.status = "booked";
         await booking.save();
+
+        if (booking.property.rentType === "monthly") {
+            await Property.findByIdAndUpdate(booking.property._id, {
+                $addToSet: { tenants: booking.user }
+            });
+        }
 
         // Notify tenant
         Notification.create({

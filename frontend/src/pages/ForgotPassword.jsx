@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Mail, ArrowLeft, KeyRound, Lock, CheckCircle2 } from "lucide-react";
 import api from "../utility/axiosInstance";
 
 export default function ForgotPassword() {
+  const location = useLocation();
   const navigate = useNavigate();
 
   // Common State
@@ -13,7 +14,8 @@ export default function ForgotPassword() {
   const [success, setSuccess] = useState("");
 
   // Step 1 State: Email
-  const [email, setEmail] = useState("");
+  const prefilledEmail = location.state?.email || "";
+  const [email, setEmail] = useState(prefilledEmail);
 
   // Step 2 State: OTP
   const [otp, setOtp] = useState(new Array(6).fill(""));
@@ -186,12 +188,15 @@ export default function ForgotPassword() {
                 <div className="relative">
                   <Mail className="top-1/2 size-4 -translate-y-1/2 text-zinc-400 absolute left-3 pointer-events-none" />
                   <input
-                    className="w-full border border-zinc-200 rounded-xl py-2.5 pl-9 pr-4 text-zinc-950 placeholder-zinc-400 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-sm transition-all bg-white"
+                    className={`w-full border border-zinc-200 rounded-xl py-2.5 pl-9 pr-4 text-sm transition-all bg-white ${prefilledEmail ? "text-zinc-500 bg-zinc-50 cursor-not-allowed" : "text-zinc-950 placeholder-zinc-400 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"}`}
                     id="email"
                     placeholder="Enter your email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      if (!prefilledEmail) setEmail(e.target.value);
+                    }}
+                    readOnly={!!prefilledEmail}
                     required
                   />
                 </div>

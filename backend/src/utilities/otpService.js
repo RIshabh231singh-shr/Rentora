@@ -37,8 +37,9 @@ async function sendOtpEmail(email, otp) {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       throw new Error("SMTP credentials are not configured in environment variables.");
     }
-    await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
     console.log(`[OTP Service] Verification email successfully sent to ${email}`);
+    console.log(`[OTP Service] SMTP Response: ${info.response}`);
     return true;
   } catch (error) {
     console.error(`[OTP Service] Failed to send email to ${email}:`, error.message);
@@ -129,8 +130,9 @@ async function sendResetPasswordEmail(email, otp) {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       throw new Error("SMTP credentials are not configured in environment variables.");
     }
-    await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
     console.log(`[OTP Service] Password reset email successfully sent to ${email}`);
+    console.log(`[OTP Service] SMTP Response: ${info.response}`);
     return true;
   } catch (error) {
     console.error(`[OTP Service] Failed to send email to ${email}:`, error.message);

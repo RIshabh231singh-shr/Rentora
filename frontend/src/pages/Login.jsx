@@ -62,6 +62,7 @@ export default function Login() {
   const {
     register,
     handleSubmit,
+    getValues,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(loginSchema),
@@ -105,7 +106,8 @@ export default function Login() {
 
   const handleForgotPassword = (e) => {
     e.preventDefault();
-    navigate("/forgot-password");
+    const currentEmail = getValues("email");
+    navigate("/forgot-password", { state: { email: currentEmail } });
   };
 
   return (

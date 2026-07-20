@@ -1,726 +1,384 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Building2,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  LayoutDashboard,
-  LogOut,
-  Plus,
-  Search,
-  User,
-  Wrench,
+  Wrench, Plus, Clock, CheckCircle2, AlertCircle, Zap,
+  Upload, Camera, X, ChevronDown, Filter, Calendar,
+  Building2, User, ArrowRight, MessageSquare,
 } from "lucide-react";
-import { Badge, Button, Card, CardContent, CardFooter, Input } from "../components/ui";
+import Layout from "../components/Layout";
+import {
+  GlassCard, GradientButton, StatusBadge, EmptyState,
+  Modal, SectionHeader, Badge, Avatar, Skeleton, StatCard,
+} from "../components/ui";
 import api from "../utility/axiosInstance";
 
-export default function Maintenance() {
+const CATEGORIES = ["plumbing", "electrical", "cleaning", "carpentry", "pest control", "others"];
+const PRIORITIES = ["low", "medium", "high"];
+const STATUSES = ["pending", "assigned", "in_progress", "resolved"];
+
+const STATUS_COLS = [
+  { key: "pending",     label: "Pending",     color: "amber",  iconColor: "text-amber-500",  bg: "bg-amber-50",  border: "border-amber-200", icon: Clock },
+  { key: "in_progress", label: "In Progress", color: "blue",   iconColor: "text-blue-500",   bg: "bg-blue-50",   border: "border-blue-200",  icon: Zap },
+  { key: "resolved",    label: "Resolved",    color: "green",  iconColor: "text-emerald-500", bg: "bg-emerald-50", border: "border-emerald-200", icon: CheckCircle2 },
+];
+
+function RequestCard({ req, user, onView, onStatusChange }) {
+  const isLandlord = user?.role === "landlord" || user?.role === "admin";
+  const priorityColors = {
+    high: "bg-red-100 text-red-700",
+    medium: "bg-amber-100 text-amber-700",
+    low: "bg-slate-100 text-slate-600",
+  };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-all cursor-pointer"
+      onClick={() => onView?.(req)}
+    >
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="font-bold text-slate-900 text-sm line-clamp-2 flex-1">{req.title}</p>
+        {req.priority && (
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 capitalize ${priorityColors[req.priority] || priorityColors.low}`}>
+            {req.priority}
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-slate-500 capitalize mb-3 flex items-center gap-1.5">
+        <span className="inline-flex size-5 rounded-md bg-slate-100 items-center justify-center">
+          <Wrench className="size-3 text-slate-500" />
+        </span>
+        {req.category}
+      </p>
+      {req.description && (
+        <p className="text-xs text-slate-400 line-clamp-2 mb-3 leading-relaxed">{req.description}</p>
+      )}
+      {req.image && (
+        <img src={req.image} alt="Request" className="w-full h-28 object-cover rounded-lg mb-3 border border-slate-100" />
+      )}
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-slate-400">{new Date(req.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span>
+        {isLandlord && req.status !== "resolved" && (
+          <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+            {req.status === "pending" && (
+              <button
+                onClick={() => onStatusChange(req._id, "in_progress")}
+                className="px-2.5 py-1 text-[10px] font-bold bg-blue-600 text-white rounded-lg border-none cursor-pointer hover:bg-blue-700"
+              >
+                Start
+              </button>
+            )}
+            {req.status === "in_progress" && (
+              <button
+                onClick={() => onStatusChange(req._id, "resolved")}
+                className="px-2.5 py-1 text-[10px] font-bold bg-emerald-600 text-white rounded-lg border-none cursor-pointer hover:bg-emerald-700"
+              >
+                Resolve ✓
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function CreateRequestModal({ open, onClose, onCreated }) {
+  const [form, setForm] = useState({ title: "", description: "", category: "plumbing", propertyId: "", priority: "medium" });
+  const [image, setImage] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [user, setUser] = useState(null);
-  const navigate = useNavigate();
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("all");
 
-  // New request modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newRequest, setNewRequest] = useState({ title: "", description: "", category: "plumbing", propertyId: "" });
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [userProperties, setUserProperties] = useState([]);
+  useEffect(() => {
+    const s = localStorage.getItem("user");
+    if (s) setUser(JSON.parse(s));
+  }, []);
 
-  // File upload state
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  useEffect(() => {
+    if (!open) return;
+    api.get("/dashboard").then(r => {
+      const props = r.data.rentedProperties || [];
+      setProperties(props);
+      if (props.length > 0) setForm(f => ({ ...f, propertyId: props[0]._id }));
+    }).catch(() => {});
+  }, [open]);
 
-  // Detailed view state
-  const [viewRequest, setViewRequest] = useState(null);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const fetchRequests = async () => {
+  const handleFile = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    setImage(f);
+    setPreview(URL.createObjectURL(f));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
     try {
-      setLoading(true);
-      const response = await api.get("/maintenance");
-      if (response.data) {
-        setRequests(response.data);
-      }
+      const fd = new FormData();
+      Object.entries(form).forEach(([k, v]) => v && fd.append(k, v));
+      if (image) fd.append("image", image);
+      await api.post("/maintenance", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      onCreated?.();
+      onClose();
+      setForm({ title: "", description: "", category: "plumbing", propertyId: "", priority: "medium" });
+      setImage(null); setPreview(null);
     } catch (err) {
-      console.error("Error fetching maintenance requests:", err);
+      setError(err.response?.data?.message || "Failed to create request.");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchUserProperties = async () => {
-    try {
-      const response = await api.get("/dashboard");
-      if (response.data) {
-        const rented = response.data.rentedProperties || [];
-        const booked = (response.data.upcomingBookingsList || [])
-          .map(b => b.property)
-          .filter(Boolean);
-        
-        // De-duplicate by ID
-        const uniqueMap = {};
-        [...rented, ...booked].forEach(p => {
-          uniqueMap[p._id] = p;
-        });
-        setUserProperties(Object.values(uniqueMap));
-      }
-    } catch (err) {
-      console.error("Error fetching user properties for maintenance dropdown:", err);
-    }
-  };
+  return (
+    <Modal open={open} onClose={onClose} title="New Maintenance Request" width="max-w-lg">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div>
+          <label className="form-label">Title *</label>
+          <input className="form-input" required value={form.title} onChange={e => set("title", e.target.value)} placeholder="e.g. Leaking pipe in kitchen" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Category *</label>
+            <select className="form-input capitalize" value={form.category} onChange={e => set("category", e.target.value)}>
+              {CATEGORIES.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Priority</label>
+            <select className="form-input capitalize" value={form.priority} onChange={e => set("priority", e.target.value)}>
+              {PRIORITIES.map(p => <option key={p} value={p} className="capitalize">{p}</option>)}
+            </select>
+          </div>
+        </div>
+        {properties.length > 0 && (
+          <div>
+            <label className="form-label">Property</label>
+            <select className="form-input" value={form.propertyId} onChange={e => set("propertyId", e.target.value)}>
+              {properties.map(p => <option key={p._id} value={p._id}>{p.propertyName}</option>)}
+            </select>
+          </div>
+        )}
+        <div>
+          <label className="form-label">Description</label>
+          <textarea className="form-input h-24 resize-none" value={form.description} onChange={e => set("description", e.target.value)} placeholder="Describe the issue in detail..." />
+        </div>
+        <div>
+          <label className="form-label">Attach Photo (optional)</label>
+          <label className="flex items-center gap-3 p-3.5 rounded-xl border-2 border-dashed border-slate-200 hover:border-blue-400 cursor-pointer transition-colors">
+            <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
+            {preview ? (
+              <img src={preview} className="h-20 w-20 object-cover rounded-lg" alt="preview" />
+            ) : (
+              <Camera className="size-6 text-slate-400" />
+            )}
+            <div>
+              <p className="text-sm font-semibold text-slate-700">{preview ? "Change photo" : "Upload photo"}</p>
+              <p className="text-xs text-slate-400">JPG, PNG up to 10MB</p>
+            </div>
+          </label>
+        </div>
+        {error && <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-200">{error}</div>}
+        <div className="flex gap-3 pt-2">
+          <GradientButton type="submit" loading={loading} icon={<CheckCircle2 className="size-4" />}>Submit Request</GradientButton>
+          <GradientButton type="button" variant="ghost" onClick={onClose}>Cancel</GradientButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    } else {
-      navigate("/login");
-    }
-  }, [navigate]);
-
-  useEffect(() => {
-    if (user) {
-      fetchRequests();
-      if (user.role === "tenant") {
-        fetchUserProperties();
-      }
-    }
-  }, [user]);
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
-  };
-
-  const handleCloseCreateModal = () => {
-    setIsModalOpen(false);
-    setNewRequest({ title: "", description: "", category: "plumbing", propertyId: "" });
-    setSelectedFile(null);
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-      setImagePreview(null);
-    }
-    setSubmitError("");
-  };
-
-  const handleCreateRequest = async (e) => {
-    e.preventDefault();
-    setSubmitError("");
-    setSubmitting(true);
-    try {
-      const formData = new FormData();
-      formData.append("title", newRequest.title);
-      formData.append("description", newRequest.description);
-      formData.append("category", newRequest.category);
-      if (newRequest.propertyId) {
-        formData.append("propertyId", newRequest.propertyId);
-      }
-      if (selectedFile) {
-        formData.append("image", selectedFile);
-      }
-
-      await api.post("/maintenance", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      setIsModalOpen(false);
-      setNewRequest({ title: "", description: "", category: "plumbing", propertyId: "" });
-      setSelectedFile(null);
-      if (imagePreview) {
-        URL.revokeObjectURL(imagePreview);
-        setImagePreview(null);
-      }
-      fetchRequests();
-    } catch (err) {
-      console.error("Error creating request:", err);
-      setSubmitError(err.response?.data?.message || "Failed to submit request");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleViewRequest = (req) => {
-    setViewRequest(req);
-    setIsViewModalOpen(true);
-  };
-
-  // Landlord/admin: update maintenance status
-  const [updatingId, setUpdatingId] = useState(null);
-  const handleUpdateStatus = async (requestId, newStatus, notes = "") => {
-    try {
-      setUpdatingId(requestId);
-      await api.put(`/maintenance/${requestId}/status`, { status: newStatus, resolutionNotes: notes });
-      // Re-fetch requests to reflect new state
-      await fetchRequests();
-    } catch (err) {
-      console.error("Failed to update status:", err);
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      localStorage.removeItem("user");
-      navigate("/login");
-    }
-  };
-
-  const filteredRequests = requests.filter((req) => {
-    const titleMatch = req.title?.toLowerCase().includes(searchQuery.toLowerCase());
-    const categoryMatch = req.category?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSearch = titleMatch || categoryMatch;
-    const matchesStatus = selectedStatus === "all" || req.status === selectedStatus;
-    return matchesSearch && matchesStatus;
-  });
+function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
+  if (!req) return null;
+  const isLandlord = user?.role === "landlord" || user?.role === "admin";
 
   return (
-    <div className="bg-white text-zinc-950 w-full h-screen flex overflow-hidden font-sans">
-      <div className="h-screen flex w-full">
-        
-        {/* Sidebar */}
-        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 h-screen">
-          <div className="flex flex-col gap-8">
-            <div className="flex px-2 items-center gap-2">
-              <div className="size-9 rounded-xl bg-white/15 flex justify-center items-center">
-                <Building2 className="size-5 text-white" />
-              </div>
-              <span className="font-bold text-white text-xl leading-7 tracking-tight">
-                Rentora
-              </span>
-            </div>
-            <nav className="flex flex-col gap-1">
-              <Link
-                to="/"
-                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
-              >
-                <LayoutDashboard className="size-4" />
-                <span>Dashboard</span>
-              </Link>
-              {(user?.role === "landlord" || user?.role === "admin") && (
-                <Link
-                  to="/properties"
-                  className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
-                >
-                  <Building2 className="size-4" />
-                  <span>My Properties</span>
-                </Link>
-              )}
-              <Link
-                to="/explore"
-                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 transition-colors"
-              >
-                <Search className="size-4" />
-                <span>Find Properties</span>
-              </Link>
-              <Link
-                to="/maintenance"
-                className="shadow-sm font-semibold rounded-lg bg-[#2b7fff] text-blue-50 text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
-              >
-                <Wrench className="size-4" />
-                <span>Maintenance Requests</span>
-              </Link>
-              <Link
-                to="/amenities"
-                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
-              >
-                <Calendar className="size-4" />
-                <span>Amenity Booking</span>
-              </Link>
-              <Link
-                to="/profile"
-                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
-              >
-                <User className="size-4" />
-                <span>Profile</span>
-              </Link>
-            </nav>
+    <Modal open={open} onClose={onClose} title="Request Details" width="max-w-lg">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-900 text-lg">{req.title}</h3>
+            <p className="text-slate-500 text-sm capitalize">{req.category}</p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 cursor-pointer border-none bg-transparent text-left w-full"
-          >
-            <LogOut className="size-4" />
-            <span>Logout</span>
-          </button>
-        </aside>
-
-        {/* Main Content */}
-        <main className="bg-slate-50 flex p-8 flex-col flex-1 gap-6 h-screen overflow-y-auto">
-          <div className="flex justify-between items-start">
-            <div className="flex flex-col gap-1">
-              <h1 className="font-bold text-blue-900 text-2xl leading-8">
-                Maintenance Requests
-              </h1>
-              <p className="text-[#71717b] text-sm leading-5">
-                Track and manage your maintenance issues in real-time
-              </p>
-            </div>
-            <Button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 gap-2 cursor-pointer border-none"
-            >
-              <Plus className="size-4" />
-              <span>New Request</span>
-            </Button>
+          <StatusBadge status={req.status} />
+        </div>
+        {req.image && (
+          <img src={req.image} alt="Issue" className="w-full rounded-xl object-cover max-h-48 border border-slate-100" />
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-xl bg-slate-50">
+            <p className="text-xs text-slate-400 mb-0.5">Category</p>
+            <p className="text-sm font-semibold text-slate-900 capitalize">{req.category}</p>
           </div>
-
-          <div className="flex justify-between items-center gap-4">
-            <div className="relative max-w-sm w-full">
-              <Search className="top-1/2 size-4 -translate-y-1/2 text-[#71717b] absolute left-3 pointer-events-none" />
-              <Input
-                className="bg-white pl-9"
-                placeholder="Search requests…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="none"
-                className={`rounded-full px-4 cursor-pointer transition-colors border border-solid ${selectedStatus === "all" ? "bg-[#2b7fff] text-white border-transparent hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-100"}`}
-                onClick={() => setSelectedStatus("all")}
-              >
-                All
-              </Button>
-              <Button
-                variant="none"
-                className={`rounded-full px-4 cursor-pointer transition-colors border border-solid ${selectedStatus === "pending" ? "bg-[#2b7fff] text-white border-transparent hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-100"}`}
-                onClick={() => setSelectedStatus("pending")}
-              >
-                Pending
-              </Button>
-              <Button
-                variant="none"
-                className={`rounded-full px-4 cursor-pointer transition-colors border border-solid ${selectedStatus === "in_progress" ? "bg-[#2b7fff] text-white border-transparent hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-100"}`}
-                onClick={() => setSelectedStatus("in_progress")}
-              >
-                In Progress
-              </Button>
-              <Button
-                variant="none"
-                className={`rounded-full px-4 cursor-pointer transition-colors border border-solid ${selectedStatus === "resolved" ? "bg-[#2b7fff] text-white border-transparent hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-100"}`}
-                onClick={() => setSelectedStatus("resolved")}
-              >
-                Completed
-              </Button>
-            </div>
+          <div className="p-3 rounded-xl bg-slate-50">
+            <p className="text-xs text-slate-400 mb-0.5">Priority</p>
+            <p className="text-sm font-semibold text-slate-900 capitalize">{req.priority || "Normal"}</p>
           </div>
+          <div className="p-3 rounded-xl bg-slate-50">
+            <p className="text-xs text-slate-400 mb-0.5">Status</p>
+            <p className="text-sm font-semibold text-slate-900 capitalize">{req.status?.replace("_", " ")}</p>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-50">
+            <p className="text-xs text-slate-400 mb-0.5">Created</p>
+            <p className="text-sm font-semibold text-slate-900">{new Date(req.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+        {req.description && (
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Description</p>
+            <p className="text-sm text-slate-700 leading-relaxed">{req.description}</p>
+          </div>
+        )}
+        {isLandlord && req.status !== "resolved" && (
+          <div className="pt-2 border-t border-slate-100 flex gap-2">
+            {req.status === "pending" && (
+              <GradientButton onClick={() => { onStatusChange(req._id, "in_progress"); onClose(); }} icon={<Zap className="size-4" />}>
+                Mark In Progress
+              </GradientButton>
+            )}
+            {(req.status === "pending" || req.status === "in_progress") && (
+              <GradientButton variant="success" onClick={() => { onStatusChange(req._id, "resolved"); onClose(); }} icon={<CheckCircle2 className="size-4" />}>
+                Mark Resolved
+              </GradientButton>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
 
-          <Card className="shadow-md p-0 gap-0 overflow-hidden border border-zinc-200 border-solid bg-white">
-            <CardContent className="p-0">
-              <table className="text-sm leading-5 w-full border-collapse">
-                <thead>
-                  <tr className="font-semibold text-left uppercase bg-slate-100 text-[#71717b] text-xs leading-4 tracking-wide border-b border-zinc-200 border-solid">
-                    <th className="px-6 py-4">#</th>
-                    <th className="px-6 py-4">Issue Title</th>
-                    <th className="px-6 py-4">Category</th>
-                    <th className="px-6 py-4">Date Submitted</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Last Updated</th>
-                    <th className="text-right px-6 py-4">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+export default function Maintenance() {
+  const [user, setUser] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [viewReq, setViewReq] = useState(null);
+
+  useEffect(() => {
+    const s = localStorage.getItem("user");
+    if (s) setUser(JSON.parse(s));
+  }, []);
+
+  const fetchRequests = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/maintenance");
+      setRequests(res.data.requests || res.data || []);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { if (user) fetchRequests(); }, [user]);
+
+  const handleStatusChange = async (id, status) => {
+    try {
+      await api.put(`/maintenance/${id}/status`, { status });
+      fetchRequests();
+    } catch {}
+  };
+
+  const byStatus = (key) => requests.filter(r => r.status === key);
+
+  const total = requests.length;
+  const pending = byStatus("pending").length;
+  const inProg = byStatus("in_progress").length;
+  const resolved = byStatus("resolved").length;
+
+  return (
+    <Layout pageTitle="Maintenance">
+      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900">Maintenance Requests</h1>
+            <p className="text-slate-500 text-sm mt-1">Track and manage property maintenance</p>
+          </div>
+          <GradientButton onClick={() => setCreateOpen(true)} icon={<Plus className="size-4" />}>
+            New Request
+          </GradientButton>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <StatCard loading={loading} label="Total" value={total} icon={<Wrench className="size-5" />} color="blue" />
+          <StatCard loading={loading} label="Pending" value={pending} icon={<Clock className="size-5" />} color="amber" />
+          <StatCard loading={loading} label="In Progress" value={inProg} icon={<Zap className="size-5" />} color="indigo" />
+          <StatCard loading={loading} label="Resolved" value={resolved} icon={<CheckCircle2 className="size-5" />} color="green" />
+        </div>
+
+        {/* Kanban Board */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {STATUS_COLS.map(col => {
+            const colRequests = byStatus(col.key);
+            return (
+              <div key={col.key} className="flex flex-col">
+                {/* Column header */}
+                <div className={`flex items-center justify-between px-4 py-3 rounded-t-2xl ${col.bg} border border-b-0 ${col.border}`}>
+                  <div className="flex items-center gap-2">
+                    <col.icon className={`size-4 ${col.iconColor}`} />
+                    <span className="font-bold text-slate-800 text-sm">{col.label}</span>
+                  </div>
+                  <span className={`size-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
+                    col.key === "pending" ? "bg-amber-500" : col.key === "in_progress" ? "bg-blue-600" : "bg-emerald-500"
+                  }`}>
+                    {colRequests.length}
+                  </span>
+                </div>
+
+                {/* Column body */}
+                <div className={`flex-1 border border-t-0 ${col.border} rounded-b-2xl p-3 min-h-[400px] flex flex-col gap-2.5`}
+                  style={{ background: col.key === "pending" ? "rgba(255, 251, 235, 0.4)" : col.key === "in_progress" ? "rgba(239, 246, 255, 0.4)" : "rgba(236, 253, 245, 0.4)" }}>
                   {loading ? (
-                    <tr>
-                      <td colSpan={7} className="text-center py-8 text-[#71717b]">
-                        Loading requests...
-                      </td>
-                    </tr>
-                  ) : filteredRequests.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="text-center py-8 text-[#71717b]">
-                        No maintenance requests found.
-                      </td>
-                    </tr>
+                    [1,2,3].map(i => <Skeleton key={i} className="h-28" />)
+                  ) : colRequests.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
+                      <col.icon className={`size-8 ${col.iconColor} opacity-30 mb-2`} />
+                      <p className="text-xs text-slate-400 font-medium">No {col.label.toLowerCase()} requests</p>
+                    </div>
                   ) : (
-                    filteredRequests.map((req, idx) => (
-                      <tr
-                        key={req._id}
-                        className={idx % 2 === 1 ? "bg-slate-50 border-b border-zinc-200 border-solid" : "border-b border-zinc-200 border-solid"}
-                      >
-                        <td className="text-[#71717b] px-6 py-4">{idx + 1}</td>
-                        <td className="font-medium text-zinc-950 px-6 py-4">
-                          {req.title}
-                        </td>
-                        <td className="text-[#71717b] px-6 py-4 capitalize">{req.category}</td>
-                        <td className="text-[#71717b] px-6 py-4">
-                          {new Date(req.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4">
-                          {req.status === "pending" && (
-                            <Badge className="border-transparent bg-red-100 text-red-700 font-medium">
-                              Pending
-                            </Badge>
-                          )}
-                          {req.status === "assigned" && (
-                            <Badge className="border-transparent bg-blue-100 text-blue-700 font-medium">
-                              Assigned
-                            </Badge>
-                          )}
-                          {req.status === "in_progress" && (
-                            <Badge className="border-transparent bg-amber-100 text-amber-700 font-medium">
-                              In Progress
-                            </Badge>
-                          )}
-                          {(req.status === "resolved" || req.status === "completed") && (
-                            <Badge className="border-transparent bg-emerald-100 text-emerald-700 font-medium">
-                              Resolved
-                            </Badge>
-                          )}
-                          {req.status === "cancelled" && (
-                            <Badge className="border-transparent bg-zinc-100 text-zinc-500 font-medium">
-                              Cancelled
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="text-[#71717b] px-6 py-4">
-                          {new Date(req.updatedAt).toLocaleDateString()}
-                        </td>
-                        <td className="text-right px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              className="text-[#2b7fff] border-zinc-200 border border-solid gap-1.5 bg-white hover:bg-zinc-50 border-none cursor-pointer"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleViewRequest(req)}
-                            >
-                              <Eye className="size-3.5" />
-                              View
-                            </Button>
-                            {/* Landlord/admin status actions */}
-                            {user && (user.role === "landlord" || user.role === "admin") && req.status !== "resolved" && req.status !== "cancelled" && (
-                              <>
-                                {req.status === "pending" && (
-                                  <button
-                                    disabled={updatingId === req._id}
-                                    onClick={() => handleUpdateStatus(req._id, "assigned")}
-                                    className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 border-solid cursor-pointer hover:bg-blue-100 transition-colors disabled:opacity-50"
-                                  >
-                                    {updatingId === req._id ? "..." : "Assign"}
-                                  </button>
-                                )}
-                                {req.status === "assigned" && (
-                                  <button
-                                    disabled={updatingId === req._id}
-                                    onClick={() => handleUpdateStatus(req._id, "in_progress")}
-                                    className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 border-solid cursor-pointer hover:bg-amber-100 transition-colors disabled:opacity-50"
-                                  >
-                                    {updatingId === req._id ? "..." : "In Progress"}
-                                  </button>
-                                )}
-                                {(req.status === "assigned" || req.status === "in_progress") && (
-                                  <button
-                                    disabled={updatingId === req._id}
-                                    onClick={() => handleUpdateStatus(req._id, "resolved")}
-                                    className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 border-solid cursor-pointer hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                                  >
-                                    {updatingId === req._id ? "..." : "Resolve"}
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                    <AnimatePresence>
+                      {colRequests.map(req => (
+                        <RequestCard
+                          key={req._id}
+                          req={req}
+                          user={user}
+                          onView={setViewReq}
+                          onStatusChange={handleStatusChange}
+                        />
+                      ))}
+                    </AnimatePresence>
                   )}
-                </tbody>
-              </table>
-            </CardContent>
-            <CardFooter className="border-t border-zinc-200 border-solid flex px-6 py-4 justify-between items-center bg-white">
-              <span className="text-[#71717b] text-xs leading-4">
-                Showing {filteredRequests.length} of {requests.length} requests
-              </span>
-              <div className="flex items-center gap-1">
-                <Button className="gap-1 border border-solid border-zinc-200 cursor-pointer" size="sm" variant="outline">
-                  <ChevronLeft className="size-4" />
-                  Prev
-                </Button>
-                <Button
-                  className="size-8 bg-[#2b7fff] text-blue-50 p-0 hover:bg-[#1a66d9] cursor-pointer border-none"
-                  size="sm"
-                >
-                  1
-                </Button>
-                <Button className="size-8 p-0 border border-solid border-zinc-200 cursor-pointer" size="sm" variant="outline">
-                  2
-                </Button>
-                <Button className="gap-1 border border-solid border-zinc-200 cursor-pointer" size="sm" variant="outline">
-                  Next
-                  <ChevronRight className="size-4" />
-                </Button>
+                </div>
               </div>
-            </CardFooter>
-          </Card>
-
-          <div className="rounded-xl bg-[#2b7fff]/5 border-[#2b7fff]/50 border border-dashed flex p-6 items-center gap-4">
-            <div className="size-12 shrink-0 rounded-full bg-[#2b7fff]/10 flex justify-center items-center">
-              <Wrench className="size-6 text-[#2b7fff]" />
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="font-semibold text-blue-900 text-sm leading-5">
-                Have a new issue?
-              </span>
-              <span className="text-[#71717b] text-sm leading-5">
-                Click + New Request to submit and track it in real-time.
-              </span>
-            </div>
-          </div>
-        </main>
+            );
+          })}
+        </div>
       </div>
 
-      {/* New Request Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/55 z-55 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl flex flex-col gap-4 border border-zinc-200 border-solid animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-zinc-100 pb-3">
-              <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
-                <Wrench className="size-5 text-[#2b7fff]" />
-                New Maintenance Request
-              </h2>
-              <button
-                onClick={handleCloseCreateModal}
-                className="text-zinc-400 hover:text-zinc-600 border-none bg-transparent cursor-pointer text-2xl font-bold"
-              >
-                &times;
-              </button>
-            </div>
-            <form onSubmit={handleCreateRequest} className="flex flex-col gap-4">
-              {userProperties.length === 0 ? (
-                <div className="bg-red-50 border border-red-200 border-solid rounded-2xl p-4 flex flex-col gap-2">
-                  <p className="text-red-700 text-xs font-semibold leading-relaxed">
-                    You do not have any active property rentals or bookings. You must have an active monthly lease or hourly booking to submit a maintenance request.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-semibold text-zinc-700">Property / Rental Booking</label>
-                    <select
-                      required
-                      className="w-full h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
-                      value={newRequest.propertyId}
-                      onChange={(e) => setNewRequest({ ...newRequest, propertyId: e.target.value })}
-                    >
-                      <option value="">-- Choose Rented/Booked Property --</option>
-                      {userProperties.map(p => (
-                        <option key={p._id} value={p._id}>{p.propertyName} ({p.propertyAddress}, {p.city})</option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-semibold text-zinc-700">Issue Title</label>
-                    <Input
-                      required
-                      minLength={5}
-                      maxLength={100}
-                      value={newRequest.title}
-                      onChange={(e) => setNewRequest({ ...newRequest, title: e.target.value })}
-                      placeholder="e.g. AC not cooling"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-semibold text-zinc-700">Category</label>
-                    <select
-                      className="w-full h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
-                      value={newRequest.category}
-                      onChange={(e) => setNewRequest({ ...newRequest, category: e.target.value })}
-                    >
-                      <option value="plumbing">Plumbing</option>
-                      <option value="electrical">Electrical</option>
-                      <option value="cleaning">Cleaning</option>
-                      <option value="others">Others</option>
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-semibold text-zinc-700">Description</label>
-                    <textarea
-                      required
-                      minLength={10}
-                      maxLength={1000}
-                      rows={4}
-                      className="w-full p-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-sans text-sm"
-                      value={newRequest.description}
-                      onChange={(e) => setNewRequest({ ...newRequest, description: e.target.value })}
-                      placeholder="Please detail the issue..."
-                    />
-                  </div>
-                  
-                  {/* Image Upload Input */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-semibold text-zinc-700">Attach Photo (Optional)</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-[#2b7fff] hover:file:bg-blue-100 cursor-pointer"
-                    />
-                    {imagePreview && (
-                      <div className="mt-2 relative w-32 h-32 rounded-xl overflow-hidden border border-zinc-200 border-solid bg-slate-50">
-                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedFile(null);
-                            URL.revokeObjectURL(imagePreview);
-                            setImagePreview(null);
-                          }}
-                          className="absolute top-1 right-1 size-6 rounded-full bg-red-500 text-white flex items-center justify-center border-none font-bold text-xs cursor-pointer shadow-md hover:bg-red-600"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+      {/* FAB */}
+      <motion.button
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setCreateOpen(true)}
+        className="fixed bottom-8 right-8 size-14 rounded-2xl shadow-xl flex items-center justify-center cursor-pointer border-none z-50"
+        style={{ background: "linear-gradient(135deg, #2563EB, #4F46E5)" }}
+        title="New Request"
+      >
+        <Plus className="size-6 text-white" />
+      </motion.button>
 
-              {submitError && <p className="text-red-600 text-xs">{submitError}</p>}
-              
-              <div className="flex justify-end gap-2 mt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-zinc-200 cursor-pointer border border-solid bg-transparent text-zinc-700 hover:bg-zinc-50"
-                  onClick={handleCloseCreateModal}
-                >
-                  Cancel
-                </Button>
-                {userProperties.length > 0 && (
-                  <Button
-                    type="submit"
-                    className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 cursor-pointer border-none"
-                    disabled={submitting}
-                  >
-                    {submitting ? "Submitting..." : "Submit Request"}
-                  </Button>
-                )}
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* View Request Details Modal */}
-      {isViewModalOpen && viewRequest && (
-        <div className="fixed inset-0 bg-black/55 z-55 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl flex flex-col gap-4 border border-zinc-200 border-solid animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-zinc-100 pb-3">
-              <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
-                <Wrench className="size-5 text-[#2b7fff]" />
-                Request Details
-              </h2>
-              <button
-                onClick={() => {
-                  setIsViewModalOpen(false);
-                  setViewRequest(null);
-                }}
-                className="text-zinc-400 hover:text-zinc-600 border-none bg-transparent cursor-pointer text-2xl font-bold"
-              >
-                &times;
-              </button>
-            </div>
-            
-            <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1">
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 uppercase tracking-wide">
-                  {viewRequest.category}
-                </span>
-                <span className={`font-semibold rounded-full text-xs leading-4 px-2.5 py-1 ${
-                  viewRequest.status === "pending" ? "bg-red-100 text-red-700" :
-                  viewRequest.status === "in_progress" ? "bg-amber-100 text-amber-700" :
-                  (viewRequest.status === "resolved" || viewRequest.status === "completed") ? "bg-emerald-100 text-emerald-700" :
-                  "bg-zinc-100 text-zinc-700"
-                }`}>
-                  {viewRequest.status === "in_progress" ? "In Progress" : 
-                   (viewRequest.status === "resolved" || viewRequest.status === "completed") ? "Completed" : 
-                   viewRequest.status.charAt(0).toUpperCase() + viewRequest.status.slice(1)}
-                </span>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-bold text-zinc-950">{viewRequest.title}</h3>
-                <p className="text-xs text-[#71717b] mt-1">
-                  Submitted on {new Date(viewRequest.createdAt).toLocaleString()}
-                </p>
-                {viewRequest.property && (
-                  <p className="text-xs text-[#71717b] mt-0.5">
-                    Property: <span className="font-semibold text-zinc-700">{viewRequest.property.propertyName || "Assigned Property"}</span>
-                  </p>
-                )}
-              </div>
-              
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-semibold text-zinc-700">Description</span>
-                <p className="text-sm text-zinc-600 bg-slate-50 p-3 rounded-lg border border-solid border-zinc-100 whitespace-pre-wrap">
-                  {viewRequest.description}
-                </p>
-              </div>
-
-              {viewRequest.images && viewRequest.images.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-semibold text-zinc-700">Attachment</span>
-                  <div className="rounded-lg overflow-hidden border border-zinc-200 border-solid max-h-64 flex justify-center bg-slate-50 p-2">
-                    <img
-                      src={viewRequest.images[0]}
-                      alt="Attachment Preview"
-                      className="max-w-full max-h-64 object-contain rounded-lg"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {viewRequest.status === "resolved" && (
-                <div className="flex flex-col gap-1 border-t border-zinc-100 pt-3">
-                  <span className="text-sm font-semibold text-zinc-700">Resolution Notes</span>
-                  {viewRequest.resolutionNotes ? (
-                    <p className="text-sm text-green-700 bg-green-50/50 p-3 rounded-lg border border-solid border-green-100">
-                      {viewRequest.resolutionNotes}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-green-600 italic">No notes provided by staff.</p>
-                  )}
-                  {viewRequest.resolvedAt && (
-                    <span className="text-xs text-[#71717b]">
-                      Resolved at: {new Date(viewRequest.resolvedAt).toLocaleString()}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            <div className="flex justify-end gap-2 border-t border-zinc-100 pt-3 mt-2">
-              <Button
-                type="button"
-                className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 cursor-pointer border-none"
-                onClick={() => {
-                  setIsViewModalOpen(false);
-                  setViewRequest(null);
-                }}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <CreateRequestModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={fetchRequests} />
+      <RequestDetailModal req={viewReq} open={!!viewReq} onClose={() => setViewReq(null)} user={user} onStatusChange={handleStatusChange} />
+    </Layout>
   );
 }

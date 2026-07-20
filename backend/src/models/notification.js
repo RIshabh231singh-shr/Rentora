@@ -18,7 +18,9 @@ const NotificationSchema = new Schema(
         "TENANT_REQUEST_ACCEPTED",
         "TENANT_REQUEST_REJECTED",
         "TENANT_REMOVED",
+        "BOOKING_CREATED",
         "BOOKING_CONFIRMED",
+        "BOOKING_REJECTED",
         "BOOKING_CANCELLED",
         "BOOKING_REMINDER",
         "MAINTENANCE_CREATED",
@@ -43,6 +45,10 @@ const NotificationSchema = new Schema(
     relatedUser: {
       type: Schema.Types.ObjectId,
       ref: "User",
+    },
+    relatedBooking: {
+      type: Schema.Types.ObjectId,
+      ref: "Booking",
     },
     status: {
       type: String,

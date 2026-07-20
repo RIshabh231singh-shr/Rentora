@@ -138,6 +138,8 @@ const getDashboardData = async (req, res) => {
 
         const notificationsList = await Notification.find({ recipient: req.user._id })
             .populate("relatedBooking", "_id status")
+            .populate("relatedUser", "_id firstname lastname email")
+            .populate("relatedProperty", "_id propertyName")
             .sort({ createdAt: -1 })
             .limit(20)
             .lean();

@@ -1,734 +1,418 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Building2,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  LayoutDashboard,
-  LogOut,
-  Plus,
-  Search,
-  User,
-  Wrench,
-  Zap,
-  MapPin,
-  Users,
-  DollarSign,
+  Plus, Building2, Pencil, Trash2, Upload, X, MapPin, Users,
+  DollarSign, Clock, Image as ImageIcon, CheckCircle2, ChevronDown,
+  Eye, Settings, Star,
 } from "lucide-react";
-import { Badge, Button, Card, CardContent, CardFooter, Input } from "../components/ui";
+import Layout from "../components/Layout";
+import {
+  GlassCard, GradientButton, StatusBadge, EmptyState,
+  Modal, SectionHeader, Badge, Avatar, Skeleton, StatCard,
+} from "../components/ui";
 import api from "../utility/axiosInstance";
 
-export default function Properties() {
-  const [user, setUser] = useState(null);
-  const navigate = useNavigate();
-  const [properties, setProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedType, setSelectedType] = useState("all");
+const PROPERTY_TYPES = ["gym", "house", "villa", "swimmingpool", "commercial", "other"];
+const RENT_TYPES = ["hourly", "monthly"];
 
-  // New property modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const [imagePreviews, setImagePreviews] = useState([]);
+function PropertyRow({ property, onEdit, onDelete, onView }) {
+  const tenantCount = property.tenants?.length || 0;
+  const pendingCount = property.pendingTenants?.length || 0;
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200 group"
+    >
+      <div className="size-14 rounded-xl overflow-hidden bg-slate-100 shrink-0">
+        {property.images?.[0] ? (
+          <img src={property.images[0]} alt={property.propertyName} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center"><Building2 className="size-5 text-slate-400" /></div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-bold text-slate-900">{property.propertyName}</p>
+          <Badge color={property.rentType === "monthly" ? "blue" : "indigo"}>{property.rentType}</Badge>
+          <span className="capitalize text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{property.propertyType}</span>
+        </div>
+        <p className="text-slate-500 text-xs flex items-center gap-1 mt-0.5"><MapPin className="size-3" />{property.propertyAddress}, {property.city}</p>
+        <div className="flex items-center gap-4 mt-1">
+          <span className="text-xs text-slate-500 flex items-center gap-1"><Users className="size-3" />{tenantCount}/{property.capacity}</span>
+          {pendingCount > 0 && <Badge color="amber">{pendingCount} pending</Badge>}
+          <span className="text-xs font-semibold text-blue-600">₹{property.pricePerHour?.toLocaleString()}/{property.rentType === "monthly" ? "mo" : "hr"}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <button onClick={() => onView(property)} className="size-8 rounded-lg bg-blue-50 hover:bg-blue-100 flex items-center justify-center text-blue-600 cursor-pointer border-none transition-colors" title="View">
+          <Eye className="size-4" />
+        </button>
+        <button onClick={() => onEdit(property)} className="size-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 cursor-pointer border-none transition-colors" title="Edit">
+          <Pencil className="size-4" />
+        </button>
+        <button onClick={() => onDelete(property._id)} className="size-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-500 cursor-pointer border-none transition-colors" title="Delete">
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
 
-  const [newProperty, setNewProperty] = useState({
-    propertyName: "",
-    propertyType: "house",
-    propertyAddress: "",
-    city: "",
-    state: "",
-    pincode: "",
-    country: "India",
-    description: "",
-    capacity: "",
+function PropertyFormModal({ open, onClose, onSaved, editingProperty }) {
+  const isEdit = !!editingProperty;
+  const [form, setForm] = useState({
+    propertyName: "", propertyType: "house", propertyAddress: "", city: "", state: "",
+    pincode: "", country: "India", description: "", capacity: 1, pricePerHour: 0,
+    securityDeposit: 0, rentType: "monthly", openingHour: 8, closingHour: 22,
     amenities: "",
-    pricePerHour: "",
-    securityDeposit: "",
-    rentType: "hourly"
   });
+  const [images, setImages] = useState([]);
+  const [previews, setPreviews] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const fileRef = useRef();
 
-  // Selected property for viewing details
-  const [viewProperty, setViewProperty] = useState(null);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-
-  const fetchProperties = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get("/properties", {
-        params: { myProperties: true },
+  useEffect(() => {
+    if (editingProperty) {
+      setForm({
+        propertyName: editingProperty.propertyName || "",
+        propertyType: editingProperty.propertyType || "house",
+        propertyAddress: editingProperty.propertyAddress || "",
+        city: editingProperty.city || "",
+        state: editingProperty.state || "",
+        pincode: editingProperty.pincode || "",
+        country: editingProperty.country || "India",
+        description: editingProperty.description || "",
+        capacity: editingProperty.capacity || 1,
+        pricePerHour: editingProperty.pricePerHour || 0,
+        securityDeposit: editingProperty.securityDeposit || 0,
+        rentType: editingProperty.rentType || "monthly",
+        openingHour: editingProperty.openingHour || 8,
+        closingHour: editingProperty.closingHour || 22,
+        amenities: editingProperty.amenities?.join(", ") || "",
       });
-      if (response.data && response.data.success) {
-        setProperties(response.data.data);
+      setPreviews(editingProperty.images || []);
+    } else {
+      setForm({ propertyName: "", propertyType: "house", propertyAddress: "", city: "", state: "", pincode: "", country: "India", description: "", capacity: 1, pricePerHour: 0, securityDeposit: 0, rentType: "monthly", openingHour: 8, closingHour: 22, amenities: "" });
+      setImages([]);
+      setPreviews([]);
+    }
+    setError("");
+  }, [editingProperty, open]);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleFiles = (files) => {
+    const arr = Array.from(files).slice(0, 5);
+    setImages(arr);
+    setPreviews(arr.map(f => URL.createObjectURL(f)));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      images.forEach(img => fd.append("images", img));
+      if (isEdit) {
+        await api.patch(`/properties/${editingProperty._id}`, Object.fromEntries(Object.entries(form).map(([k, v]) => [k, k === "amenities" ? v.split(",").map(s => s.trim()).filter(Boolean) : v])));
+      } else {
+        if (images.length > 0) {
+          const fda = new FormData();
+          Object.entries(form).forEach(([k, v]) => {
+            if (k === "amenities") fda.append(k, JSON.stringify(v.split(",").map(s => s.trim()).filter(Boolean)));
+            else fda.append(k, v);
+          });
+          images.forEach(img => fda.append("images", img));
+          await api.post("/properties", fda, { headers: { "Content-Type": "multipart/form-data" } });
+        } else {
+          await api.post("/properties", { ...form, amenities: form.amenities.split(",").map(s => s.trim()).filter(Boolean) }, { headers: { "Content-Type": "application/json" } });
+        }
       }
+      onSaved?.();
+      onClose();
     } catch (err) {
-      console.error("Error fetching properties:", err);
+      setError(err.response?.data?.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      const parsed = JSON.parse(storedUser);
-      setUser(parsed);
-      if (parsed.role !== "landlord" && parsed.role !== "admin") {
-        navigate("/");
-      }
-    } else {
-      navigate("/login");
-    }
-  }, [navigate]);
-
-  useEffect(() => {
-    if (user) {
-      fetchProperties();
-    }
-  }, [user]);
-
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length > 0) {
-      setSelectedFiles((prev) => [...prev, ...files]);
-      const newPreviews = files.map((file) => URL.createObjectURL(file));
-      setImagePreviews((prev) => [...prev, ...newPreviews]);
-    }
-  };
-
-  const removeSelectedFile = (index) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => {
-      URL.revokeObjectURL(prev[index]);
-      return prev.filter((_, i) => i !== index);
-    });
-  };
-
-  const handleCloseCreateModal = () => {
-    setIsModalOpen(false);
-    setNewProperty({
-      propertyName: "",
-      propertyType: "house",
-      propertyAddress: "",
-      city: "",
-      state: "",
-      pincode: "",
-      country: "India",
-      description: "",
-      capacity: "",
-      amenities: "",
-      pricePerHour: "",
-      securityDeposit: "",
-      rentType: "hourly"
-    });
-    setSelectedFiles([]);
-    imagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
-    setImagePreviews([]);
-    setSubmitError("");
-  };
-
-  const handleCreateProperty = async (e) => {
-    e.preventDefault();
-    setSubmitError("");
-    setSubmitting(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("propertyName", newProperty.propertyName);
-      formData.append("propertyType", newProperty.propertyType);
-      formData.append("propertyAddress", newProperty.propertyAddress);
-      formData.append("city", newProperty.city);
-      formData.append("state", newProperty.state);
-      formData.append("pincode", newProperty.pincode);
-      formData.append("country", newProperty.country);
-      formData.append("description", newProperty.description);
-      formData.append("capacity", newProperty.capacity);
-      formData.append("amenities", newProperty.amenities);
-      formData.append("pricePerHour", newProperty.pricePerHour);
-      formData.append("securityDeposit", newProperty.securityDeposit);
-      formData.append("rentType", newProperty.rentType);
-
-      selectedFiles.forEach((file) => {
-        formData.append("images", file);
-      });
-
-      const response = await api.post("/properties", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      if (response.data && response.data.success) {
-        handleCloseCreateModal();
-        fetchProperties();
-      } else {
-        setSubmitError(response.data.message || "Failed to create property");
-      }
-    } catch (err) {
-      console.error("Error creating property:", err);
-      setSubmitError(err.response?.data?.message || "Failed to submit property");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleViewProperty = (prop) => {
-    setViewProperty(prop);
-    setActiveImageIndex(0);
-    setIsViewModalOpen(true);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      localStorage.removeItem("user");
-      navigate("/login");
-    }
-  };
-
-  const filteredProperties = properties.filter((prop) => {
-    const nameMatch = prop.propertyName?.toLowerCase().includes(searchQuery.toLowerCase());
-    const cityMatch = prop.city?.toLowerCase().includes(searchQuery.toLowerCase());
-    const typeMatch = prop.propertyType?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSearch = nameMatch || cityMatch || typeMatch;
-    const matchesType = selectedType === "all" || prop.propertyType === selectedType;
-    return matchesSearch && matchesType;
-  });
-
   return (
-    <div className="bg-white text-zinc-950 w-full h-screen flex overflow-hidden font-sans">
-      <div className="h-screen flex w-full">
-        
-        {/* Sidebar */}
-        <aside className="shrink-0 bg-blue-900 text-white flex p-6 flex-col justify-between w-60 h-screen">
-          <div className="flex flex-col gap-8">
-            <div className="flex px-2 items-center gap-2">
-              <div className="size-9 rounded-xl bg-white/15 flex justify-center items-center">
-                <Building2 className="size-5 text-white" />
-              </div>
-              <span className="font-bold text-white text-xl leading-7 tracking-tight">
-                Rentora
-              </span>
-            </div>
-            <nav className="flex flex-col gap-1">
-              <Link
-                to="/"
-                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
-              >
-                <LayoutDashboard className="size-4" />
-                <span>Dashboard</span>
-              </Link>
-              <Link
-                to="/properties"
-                className="shadow-sm font-semibold rounded-lg bg-[#2b7fff] text-blue-50 text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
-              >
-                <Building2 className="size-4" />
-                <span>My Properties</span>
-              </Link>
-              <Link
-                to="/maintenance"
-                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
-              >
-                <Wrench className="size-4" />
-                <span>Maintenance Requests</span>
-              </Link>
-              <Link
-                to="/amenities"
-                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
-              >
-                <Zap className="size-4" />
-                <span>Amenity Booking</span>
-              </Link>
-              <Link
-                to="/profile"
-                className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3"
-              >
-                <User className="size-4" />
-                <span>Profile</span>
-              </Link>
-            </nav>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="transition-colors font-medium rounded-lg text-blue-100/80 hover:text-white text-sm leading-5 flex px-3 py-2.5 items-center gap-3 cursor-pointer border-none bg-transparent text-left w-full"
-          >
-            <LogOut className="size-4" />
-            <span>Logout</span>
-          </button>
-        </aside>
- 
-        {/* Main Content */}
-        <main className="bg-slate-50 flex p-8 flex-col flex-1 gap-6 h-screen overflow-y-auto">
-          <div className="flex justify-between items-start">
-            <div className="flex flex-col gap-1">
-              <h1 className="font-bold text-blue-900 text-2xl leading-8">
-                My Properties
-              </h1>
-              <p className="text-[#71717b] text-sm leading-5">
-                Manage, list, and monitor your properties in real-time
-              </p>
-            </div>
-            <Button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 gap-2 cursor-pointer border-none"
-            >
-              <Plus className="size-4" />
-              <span>Add Property</span>
-            </Button>
-          </div>
-
-          <div className="flex justify-between items-center gap-4">
-            <div className="relative max-w-sm w-full">
-              <Search className="top-1/2 size-4 -translate-y-1/2 text-[#71717b] absolute left-3 pointer-events-none" />
-              <Input
-                className="bg-white pl-9"
-                placeholder="Search properties by name, city or type…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              {["all", "house", "villa", "gym", "swimmingpool", "commercial", "other"].map((type) => (
-                <Button
-                  key={type}
-                  variant="none"
-                  className={`rounded-full px-4 cursor-pointer transition-colors border border-solid capitalize ${selectedType === type ? "bg-[#2b7fff] text-white border-transparent hover:bg-[#1a66d9]" : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-100"}`}
-                  onClick={() => setSelectedType(type)}
-                >
-                  {type === "swimmingpool" ? "Pool" : type}
-                </Button>
+    <Modal open={open} onClose={onClose} title={isEdit ? "Edit Property" : "List New Property"} width="max-w-2xl">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Image upload */}
+        <div
+          className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-6 text-center cursor-pointer transition-colors"
+          onClick={() => fileRef.current?.click()}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+        >
+          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handleFiles(e.target.files)} />
+          {previews.length > 0 ? (
+            <div className="flex gap-2 flex-wrap justify-center">
+              {previews.map((src, i) => (
+                <img key={i} src={src} className="size-20 rounded-xl object-cover border border-slate-200" alt="preview" />
               ))}
             </div>
+          ) : (
+            <>
+              <ImageIcon className="size-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-sm text-slate-500 font-medium">Drop images here or click to upload</p>
+              <p className="text-xs text-slate-400 mt-1">Up to 5 images, JPG/PNG</p>
+            </>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="form-label">Property Name *</label>
+            <input className="form-input" required value={form.propertyName} onChange={e => set("propertyName", e.target.value)} placeholder="e.g. Sunset Villa" />
+          </div>
+          <div>
+            <label className="form-label">Type *</label>
+            <select className="form-input" value={form.propertyType} onChange={e => set("propertyType", e.target.value)}>
+              {PROPERTY_TYPES.map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Rent Type *</label>
+            <select className="form-input" value={form.rentType} onChange={e => set("rentType", e.target.value)}>
+              {RENT_TYPES.map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="form-label">Address *</label>
+            <input className="form-input" required value={form.propertyAddress} onChange={e => set("propertyAddress", e.target.value)} placeholder="Street address" />
+          </div>
+          <div>
+            <label className="form-label">City *</label>
+            <input className="form-input" required value={form.city} onChange={e => set("city", e.target.value)} placeholder="City" />
+          </div>
+          <div>
+            <label className="form-label">State *</label>
+            <input className="form-input" required value={form.state} onChange={e => set("state", e.target.value)} placeholder="State" />
+          </div>
+          <div>
+            <label className="form-label">Pincode *</label>
+            <input className="form-input" required type="number" value={form.pincode} onChange={e => set("pincode", e.target.value)} placeholder="110001" />
+          </div>
+          <div>
+            <label className="form-label">Country *</label>
+            <input className="form-input" required value={form.country} onChange={e => set("country", e.target.value)} />
+          </div>
+          <div className="col-span-2">
+            <label className="form-label">Description *</label>
+            <textarea className="form-input h-24 resize-none" required value={form.description} onChange={e => set("description", e.target.value)} placeholder="Describe your property..." />
+          </div>
+          <div>
+            <label className="form-label">Price (₹/{form.rentType === "monthly" ? "month" : "hour"}) *</label>
+            <input className="form-input" required type="number" min={0} value={form.pricePerHour} onChange={e => set("pricePerHour", e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Security Deposit (₹) *</label>
+            <input className="form-input" required type="number" min={0} value={form.securityDeposit} onChange={e => set("securityDeposit", e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Capacity *</label>
+            <input className="form-input" required type="number" min={1} value={form.capacity} onChange={e => set("capacity", e.target.value)} />
+          </div>
+          {form.rentType === "hourly" && (
+            <>
+              <div>
+                <label className="form-label">Opening Hour</label>
+                <input className="form-input" type="number" min={0} max={23} value={form.openingHour} onChange={e => set("openingHour", e.target.value)} />
+              </div>
+              <div>
+                <label className="form-label">Closing Hour</label>
+                <input className="form-input" type="number" min={0} max={23} value={form.closingHour} onChange={e => set("closingHour", e.target.value)} />
+              </div>
+            </>
+          )}
+          <div className="col-span-2">
+            <label className="form-label">Amenities (comma-separated)</label>
+            <input className="form-input" value={form.amenities} onChange={e => set("amenities", e.target.value)} placeholder="e.g. WiFi, Parking, Gym" />
+          </div>
+        </div>
+
+        {error && <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-200">{error}</div>}
+
+        <div className="flex gap-3 pt-2">
+          <GradientButton type="submit" loading={loading} icon={<CheckCircle2 className="size-4" />}>
+            {isEdit ? "Save Changes" : "List Property"}
+          </GradientButton>
+          <GradientButton type="button" variant="ghost" onClick={onClose}>Cancel</GradientButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export default function Properties() {
+  const [user, setUser] = useState(null);
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editProperty, setEditProperty] = useState(null);
+  const [viewProp, setViewProp] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const s = localStorage.getItem("user");
+    if (s) setUser(JSON.parse(s));
+  }, []);
+
+  const fetchProperties = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/properties");
+      if (res.data.success) setProperties(res.data.data.filter(p => {
+        const u = JSON.parse(localStorage.getItem("user") || "{}");
+        return p.owner?._id === u.id || p.owner === u.id;
+      }));
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { if (user) fetchProperties(); }, [user]);
+
+  const handleDelete = async (id) => {
+    try {
+      await api.delete(`/properties/${id}`);
+      fetchProperties();
+    } catch {}
+    setDeleteId(null);
+  };
+
+  const filtered = properties.filter(p =>
+    !search || p.propertyName?.toLowerCase().includes(search.toLowerCase()) || p.city?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalTenants = properties.reduce((sum, p) => sum + (p.tenants?.length || 0), 0);
+  const totalPending = properties.reduce((sum, p) => sum + (p.pendingTenants?.length || 0), 0);
+
+  return (
+    <Layout pageTitle="My Properties">
+      <div className="p-6 lg:p-8 max-w-6xl mx-auto">
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900">My Properties</h1>
+            <p className="text-slate-500 text-sm mt-1">Manage your listed properties and tenants</p>
+          </div>
+          <GradientButton onClick={() => setCreateOpen(true)} icon={<Plus className="size-4" />}>
+            List Property
+          </GradientButton>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <StatCard loading={loading} label="Total Properties" value={properties.length} icon={<Building2 className="size-5" />} color="blue" />
+          <StatCard loading={loading} label="Active Tenants" value={totalTenants} icon={<Users className="size-5" />} color="green" />
+          <StatCard loading={loading} label="Pending Requests" value={totalPending} icon={<Clock className="size-5" />} color="amber" />
+        </div>
+
+        {/* List */}
+        <GlassCard className="p-5">
+          <div className="flex items-center gap-4 mb-5">
+            <input
+              className="form-input flex-1 max-w-xs"
+              placeholder="Search properties..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
 
           {loading ? (
-            <div className="text-center py-12 text-[#71717b]">Loading properties...</div>
-          ) : filteredProperties.length === 0 ? (
-            <div className="bg-white border border-zinc-200 border-solid rounded-2xl p-12 text-center flex flex-col items-center justify-center gap-3">
-              <Building2 className="size-12 text-blue-900/40" />
-              <h3 className="font-semibold text-zinc-900 text-lg">No properties found</h3>
-              <p className="text-[#71717b] text-sm max-w-sm">
-                Get started by adding your first property. It will be immediately available for tenant applications.
-              </p>
-              <Button
-                onClick={() => setIsModalOpen(true)}
-                className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 gap-2 border-none mt-2 cursor-pointer"
-              >
-                <Plus className="size-4" />
-                <span>Add Property Now</span>
-              </Button>
+            <div className="flex flex-col gap-3">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-20" />)}
             </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={<Building2 className="size-8" />}
+              title={search ? "No properties match" : "No properties yet"}
+              description={search ? "Try a different search term" : "Start by listing your first property"}
+              action={search ? undefined : () => setCreateOpen(true)}
+              actionLabel="List Property"
+            />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {filteredProperties.map((prop) => (
-                <Card key={prop._id} className="overflow-hidden border border-zinc-200 border-solid bg-white flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
-                  <div>
-                    <div className="h-48 w-full bg-slate-100 overflow-hidden relative">
-                      <img
-                        src={prop.images?.[0] || "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=600&q=80"}
-                        alt={prop.propertyName}
-                        className="w-full h-full object-contain bg-[#f8fafc]"
-                      />
-                      <Badge className="absolute top-3 right-3 bg-blue-900/80 text-white font-medium border-transparent capitalize">
-                        {prop.propertyType}
-                      </Badge>
-                    </div>
-                    <CardContent className="p-5 flex flex-col gap-3">
-                      <div>
-                        <h3 className="font-bold text-zinc-950 text-lg leading-6">{prop.propertyName}</h3>
-                        <p className="text-[#71717b] text-xs flex items-center gap-1 mt-1">
-                          <MapPin className="size-3 text-[#2b7fff]" />
-                          {prop.city}, {prop.state}
-                        </p>
-                      </div>
-                      <p className="text-zinc-600 text-sm leading-5 line-clamp-2">
-                        {prop.description}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 border-t border-b border-zinc-100 border-solid py-3 my-1">
-                        <div className="flex items-center gap-2">
-                          <Users className="size-4 text-[#71717b]" />
-                          <span className="text-zinc-700 text-xs font-medium">Capacity: {prop.capacity}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="size-4 text-[#71717b]" />
-                          <span className="text-zinc-700 text-xs font-medium">
-                            Price: ₹{prop.pricePerHour}/{prop.rentType === "monthly" ? "mo" : "hr"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {prop.amenities?.map((amenity, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-[10px] bg-slate-100 text-slate-700 font-normal">
-                            {amenity}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </div>
-                  <CardFooter className="p-5 pt-0">
-                    <Button
-                      onClick={() => handleViewProperty(prop)}
-                      className="w-full text-[#2b7fff] border-zinc-200 border border-solid gap-1.5 bg-white hover:bg-zinc-50 border-none cursor-pointer text-sm font-medium"
-                    >
-                      <Eye className="size-4" />
-                      View Details
-                    </Button>
-                  </CardFooter>
-                </Card>
+            <div className="flex flex-col divide-y divide-slate-50">
+              {filtered.map(p => (
+                <PropertyRow
+                  key={p._id}
+                  property={p}
+                  onEdit={() => setEditProperty(p)}
+                  onDelete={setDeleteId}
+                  onView={setViewProp}
+                />
               ))}
             </div>
           )}
-        </main>
-      </div>
+        </GlassCard>
 
-      {/* New Property Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/55 z-55 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl flex flex-col gap-4 border border-zinc-200 border-solid animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-zinc-100 pb-3">
-              <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
-                <Building2 className="size-5 text-[#2b7fff]" />
-                Add New Property
-              </h2>
-              <button
-                onClick={handleCloseCreateModal}
-                className="text-zinc-400 hover:text-zinc-600 border-none bg-transparent cursor-pointer text-2xl font-bold"
-              >
-                &times;
-              </button>
-            </div>
-            
-            <form onSubmit={handleCreateProperty} className="flex flex-col gap-4 max-h-[75vh] overflow-y-auto pr-1">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">Property Name</label>
-                  <Input
-                    required
-                    minLength={3}
-                    maxLength={50}
-                    value={newProperty.propertyName}
-                    onChange={(e) => setNewProperty({ ...newProperty, propertyName: e.target.value })}
-                    placeholder="e.g. Skyline Villa"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">Property Type</label>
-                  <select
-                    className="w-full h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    value={newProperty.propertyType}
-                    onChange={(e) => setNewProperty({ ...newProperty, propertyType: e.target.value })}
-                  >
-                    <option value="house">House</option>
-                    <option value="villa">Villa</option>
-                    <option value="gym">Gym</option>
-                    <option value="swimmingpool">Swimming Pool</option>
-                    <option value="commercial">Commercial</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
+        {/* Create/Edit Modal */}
+        <PropertyFormModal
+          open={createOpen || !!editProperty}
+          onClose={() => { setCreateOpen(false); setEditProperty(null); }}
+          onSaved={fetchProperties}
+          editingProperty={editProperty}
+        />
 
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold text-zinc-700">Street Address</label>
-                <Input
-                  required
-                  value={newProperty.propertyAddress}
-                  onChange={(e) => setNewProperty({ ...newProperty, propertyAddress: e.target.value })}
-                  placeholder="Street details, building number..."
-                />
-              </div>
+        {/* Delete Confirm Modal */}
+        <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Property" width="max-w-sm">
+          <p className="text-slate-600 text-sm mb-5">Are you sure you want to delete this property? This action cannot be undone.</p>
+          <div className="flex gap-3">
+            <GradientButton variant="danger" onClick={() => handleDelete(deleteId)} icon={<Trash2 className="size-4" />}>Delete</GradientButton>
+            <GradientButton variant="ghost" onClick={() => setDeleteId(null)}>Cancel</GradientButton>
+          </div>
+        </Modal>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">City</label>
-                  <Input
-                    required
-                    value={newProperty.city}
-                    onChange={(e) => setNewProperty({ ...newProperty, city: e.target.value })}
-                    placeholder="City"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">State</label>
-                  <Input
-                    required
-                    value={newProperty.state}
-                    onChange={(e) => setNewProperty({ ...newProperty, state: e.target.value })}
-                    placeholder="State"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">Pincode</label>
-                  <Input
-                    required
-                    pattern="^[1-9][0-9]{5}$"
-                    title="Please enter valid 6-digit pincode"
-                    value={newProperty.pincode}
-                    onChange={(e) => setNewProperty({ ...newProperty, pincode: e.target.value })}
-                    placeholder="6-digit PIN"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">Country</label>
-                  <Input
-                    required
-                    value={newProperty.country}
-                    onChange={(e) => setNewProperty({ ...newProperty, country: e.target.value })}
-                    placeholder="Country"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">Total Capacity</label>
-                  <Input
-                    required
-                    type="number"
-                    min="1"
-                    value={newProperty.capacity}
-                    onChange={(e) => setNewProperty({ ...newProperty, capacity: e.target.value })}
-                    placeholder="Max occupants"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">Rent Type</label>
-                  <select
-                    className="w-full h-10 px-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    value={newProperty.rentType}
-                    onChange={(e) => setNewProperty({ ...newProperty, rentType: e.target.value })}
-                  >
-                    <option value="hourly">Hourly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">
-                    {newProperty.rentType === "hourly" ? "Price per Hour (₹)" : "Price per Month (₹)"}
-                  </label>
-                  <Input
-                    required
-                    type="number"
-                    min="0"
-                    value={newProperty.pricePerHour}
-                    onChange={(e) => setNewProperty({ ...newProperty, pricePerHour: e.target.value })}
-                    placeholder={newProperty.rentType === "hourly" ? "Hourly rate" : "Monthly rate"}
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-zinc-700">Deposit (₹)</label>
-                  <Input
-                    required
-                    type="number"
-                    min="0"
-                    value={newProperty.securityDeposit}
-                    onChange={(e) => setNewProperty({ ...newProperty, securityDeposit: e.target.value })}
-                    placeholder="Advance deposit"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold text-zinc-700">Amenities (comma-separated)</label>
-                <Input
-                  required
-                  value={newProperty.amenities}
-                  onChange={(e) => setNewProperty({ ...newProperty, amenities: e.target.value })}
-                  placeholder="e.g. WiFi, Parking, AC, Power Backup"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold text-zinc-700">Description</label>
-                <textarea
-                  required
-                  rows={3}
-                  className="w-full p-3 rounded-lg border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-sans text-sm"
-                  value={newProperty.description}
-                  onChange={(e) => setNewProperty({ ...newProperty, description: e.target.value })}
-                  placeholder="Detailed explanation of rooms, facilities..."
-                />
-              </div>
-
-              {/* Photo Upload */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-zinc-700">Property Photos (Optional, max 5)</label>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-[#2b7fff] hover:file:bg-blue-100 cursor-pointer"
-                />
-                {imagePreviews.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {imagePreviews.map((preview, index) => (
-                      <div key={index} className="relative w-24 h-16 rounded-xl overflow-hidden border border-zinc-200 border-solid bg-slate-50">
-                        <img src={preview} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeSelectedFile(index)}
-                          className="absolute top-0.5 right-0.5 size-5 rounded-full bg-red-500 text-white flex items-center justify-center border-none font-bold text-[10px] cursor-pointer shadow-md hover:bg-red-600"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    ))}
+        {/* View Property Modal */}
+        <Modal open={!!viewProp} onClose={() => setViewProp(null)} title={viewProp?.propertyName || ""} width="max-w-xl">
+          {viewProp && (
+            <div className="flex flex-col gap-4">
+              {viewProp.images?.[0] && (
+                <img src={viewProp.images[0]} className="w-full h-48 object-cover rounded-xl" alt={viewProp.propertyName} />
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: "Address", value: `${viewProp.propertyAddress}, ${viewProp.city}` },
+                  { label: "Price", value: `₹${viewProp.pricePerHour?.toLocaleString()}/${viewProp.rentType === "monthly" ? "mo" : "hr"}` },
+                  { label: "Capacity", value: `${viewProp.capacity} people` },
+                  { label: "Tenants", value: `${viewProp.tenants?.length || 0} / ${viewProp.capacity}` },
+                  { label: "Deposit", value: `₹${viewProp.securityDeposit?.toLocaleString()}` },
+                  { label: "Type", value: viewProp.propertyType },
+                ].map(({ label, value }) => (
+                  <div key={label} className="p-3 rounded-xl bg-slate-50">
+                    <p className="text-xs text-slate-400 mb-0.5">{label}</p>
+                    <p className="text-sm font-semibold text-slate-900 capitalize">{value}</p>
                   </div>
-                )}
+                ))}
               </div>
-
-              {submitError && <p className="text-red-600 text-xs">{submitError}</p>}
-              
-              <div className="flex justify-end gap-2 mt-2 border-t border-zinc-100 pt-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-zinc-200 cursor-pointer border border-solid bg-transparent text-zinc-700 hover:bg-zinc-50"
-                  onClick={handleCloseCreateModal}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 cursor-pointer border-none"
-                  disabled={submitting}
-                >
-                  {submitting ? "Listing Property..." : "List Property"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* View Property Details Modal */}
-      {isViewModalOpen && viewProperty && (
-        <div className="fixed inset-0 bg-black/55 z-55 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl flex flex-col gap-4 border border-zinc-200 border-solid animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-zinc-100 pb-3">
-              <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
-                <Building2 className="size-5 text-[#2b7fff]" />
-                Property Details
-              </h2>
-              <button
-                onClick={() => {
-                  setIsViewModalOpen(false);
-                  setViewProperty(null);
-                }}
-                className="text-zinc-400 hover:text-zinc-600 border-none bg-transparent cursor-pointer text-2xl font-bold"
-              >
-                &times;
-              </button>
-            </div>
-            
-            <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1">
-             <div className="flex flex-col gap-2">
-               <div className="h-56 w-full bg-slate-100 overflow-hidden rounded-xl border border-zinc-200 border-solid flex justify-center items-center">
-                 <img
-                   src={(viewProperty.images && viewProperty.images.length > 0) ? viewProperty.images[activeImageIndex] : "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=600&q=80"}
-                   alt={viewProperty.propertyName}
-                   className="w-full h-full object-contain bg-[#f8fafc]"
-                 />
-               </div>
-               
-               {viewProperty.images && viewProperty.images.length > 1 && (
-                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                   {viewProperty.images.map((imgUrl, idx) => (
-                     <button
-                       key={idx}
-                       type="button"
-                       onClick={() => setActiveImageIndex(idx)}
-                       className={`size-16 rounded-lg overflow-hidden border-2 border-solid shrink-0 p-0 cursor-pointer ${activeImageIndex === idx ? "border-[#2b7fff]" : "border-zinc-200"}`}
-                     >
-                       <img src={imgUrl} alt="Thumbnail" className="w-full h-full object-cover" />
-                     </button>
-                   ))}
-                 </div>
-               )}
-             </div>
-
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 uppercase tracking-wide">
-                  {viewProperty.propertyType}
-                </span>
-                <span className="text-xs text-[#71717b]">
-                  Listed on {new Date(viewProperty.createdAt).toLocaleDateString()}
-                </span>
-              </div>
-              
               <div>
-                <h3 className="text-xl font-bold text-zinc-950">{viewProperty.propertyName}</h3>
-                <p className="text-sm text-zinc-600 flex items-center gap-1 mt-1.5">
-                  <MapPin className="size-4 text-[#2b7fff]" />
-                  {viewProperty.propertyAddress}, {viewProperty.city}, {viewProperty.state} - {viewProperty.pincode}, {viewProperty.country}
-                </p>
+                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2">Description</p>
+                <p className="text-sm text-slate-700 leading-relaxed">{viewProp.description}</p>
               </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-semibold text-zinc-700">About the Property</span>
-                <p className="text-sm text-zinc-600 bg-slate-50 p-3 rounded-lg border border-solid border-zinc-100 whitespace-pre-wrap">
-                  {viewProperty.description}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 border-t border-b border-zinc-100 border-solid py-3.5 my-1">
-                <div>
-                  <span className="text-xs text-[#71717b] block">Capacity limit</span>
-                  <span className="text-zinc-950 font-bold text-sm">{viewProperty.capacity} People</span>
-                </div>
-                 <div>
-                  <span className="text-xs text-[#71717b] block">Rental Rate</span>
-                  <span className="text-[#2b7fff] font-bold text-sm">
-                    ₹{viewProperty.pricePerHour} / {viewProperty.rentType === "monthly" ? "month" : "hour"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-xs text-[#71717b] block">Security Deposit</span>
-                  <span className="text-zinc-950 font-bold text-sm">₹{viewProperty.securityDeposit} (Refundable)</span>
-                </div>
-                <div>
-                  <span className="text-xs text-[#71717b] block">Current Tenants</span>
-                  <span className="text-zinc-950 font-bold text-sm">{viewProperty.tenants?.length || 0} occupies</span>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-semibold text-zinc-700">Amenities Available</span>
+              {viewProp.amenities?.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
-                  {viewProperty.amenities?.map((amenity, idx) => (
-                    <Badge key={idx} variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                      {amenity}
-                    </Badge>
-                  ))}
+                  {viewProp.amenities.map(a => <Badge key={a} color="cyan">{a}</Badge>)}
                 </div>
-              </div>
+              )}
+              {viewProp.pendingTenants?.length > 0 && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                  <p className="text-xs font-bold text-amber-800 mb-2">{viewProp.pendingTenants.length} Pending Tenant Request(s)</p>
+                  <p className="text-xs text-amber-700">Manage requests from your dashboard.</p>
+                </div>
+              )}
             </div>
-            
-            <div className="flex justify-end gap-2 border-t border-zinc-100 pt-3 mt-2">
-              <Button
-                type="button"
-                className="bg-[#2b7fff] hover:bg-[#1a66d9] text-blue-50 cursor-pointer border-none"
-                onClick={() => {
-                  setIsViewModalOpen(false);
-                  setViewProperty(null);
-                }}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+          )}
+        </Modal>
+      </div>
+    </Layout>
   );
 }

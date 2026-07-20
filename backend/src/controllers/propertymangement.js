@@ -39,6 +39,9 @@ const createProperty = async (req, res) => {
             amenities,
             pricePerHour,
             securityDeposit,
+            rentType,
+            openingHour,
+            closingHour
         } = req.body;
 
         // Parse fields sent via FormData multipart
@@ -46,6 +49,8 @@ const createProperty = async (req, res) => {
         if (capacity !== undefined && capacity !== "") capacity = Number(capacity);
         if (pricePerHour !== undefined && pricePerHour !== "") pricePerHour = Number(pricePerHour);
         if (securityDeposit !== undefined && securityDeposit !== "") securityDeposit = Number(securityDeposit);
+        if (openingHour !== undefined && openingHour !== "") openingHour = Number(openingHour);
+        if (closingHour !== undefined && closingHour !== "") closingHour = Number(closingHour);
 
         if (typeof amenities === "string") {
             try {
@@ -152,6 +157,9 @@ const createProperty = async (req, res) => {
             amenities,
             pricePerHour,
             securityDeposit,
+            rentType:        rentType || "hourly",
+            openingHour:     openingHour !== undefined ? openingHour : 8,
+            closingHour:     closingHour !== undefined ? closingHour : 22,
             images:          imageUrls,
             owner:           req.user.id,
         });
@@ -201,9 +209,9 @@ const updateProperty = async (req, res) => {
             return res.status(403).json({ success: false, message: "You are not authorized to update this property" });
         }
 
-        const VALID_PROPERTY_TYPES = ["gym", "house", "villa", "swimmingpool", "commercial"];
+        const VALID_PROPERTY_TYPES = ["gym", "house", "villa", "swimmingpool", "commercial", "other"];
 
-        const {
+        let {
             propertyName,
             propertyType,
             propertyAddress,
@@ -216,7 +224,25 @@ const updateProperty = async (req, res) => {
             amenities,
             pricePerHour,
             securityDeposit,
+            rentType,
+            openingHour,
+            closingHour
         } = req.body;
+
+        // Parse inputs to handle both JSON payloads and FormData strings
+        if (pincode !== undefined) pincode = Number(pincode);
+        if (capacity !== undefined) capacity = Number(capacity);
+        if (pricePerHour !== undefined) pricePerHour = Number(pricePerHour);
+        if (securityDeposit !== undefined) securityDeposit = Number(securityDeposit);
+        if (openingHour !== undefined) openingHour = Number(openingHour);
+        if (closingHour !== undefined) closingHour = Number(closingHour);
+        if (typeof amenities === "string") {
+            try {
+                amenities = JSON.parse(amenities);
+            } catch {
+                amenities = amenities.split(",").map(a => a.trim()).filter(Boolean);
+            }
+        }
 
         if (propertyName !== undefined) {
             if (typeof propertyName !== "string" || propertyName.trim().length < 3 || propertyName.trim().length > 50) {
@@ -252,7 +278,7 @@ const updateProperty = async (req, res) => {
         }
 
         if (pincode !== undefined) {
-            if (typeof pincode !== "number" || !/^[1-9][0-9]{5}$/.test(String(pincode))) {
+            if (typeof pincode !== "number" || isNaN(pincode) || !/^[1-9][0-9]{5}$/.test(String(pincode))) {
                 return res.status(422).json({ success: false, message: "Please enter a valid 6-digit pincode" });
             }
         }
@@ -270,7 +296,7 @@ const updateProperty = async (req, res) => {
         }
 
         if (capacity !== undefined) {
-            if (typeof capacity !== "number" || capacity < 1 || !Number.isInteger(capacity)) {
+            if (typeof capacity !== "number" || isNaN(capacity) || capacity < 1 || !Number.isInteger(capacity)) {
                 return res.status(422).json({ success: false, message: "capacity must be a positive integer" });
             }
         }
@@ -282,23 +308,33 @@ const updateProperty = async (req, res) => {
         }
 
         if (pricePerHour !== undefined) {
-            if (typeof pricePerHour !== "number" || pricePerHour < 0) {
+            if (typeof pricePerHour !== "number" || isNaN(pricePerHour) || pricePerHour < 0) {
                 return res.status(422).json({ success: false, message: "pricePerHour must be a non-negative number" });
             }
         }
 
         if (securityDeposit !== undefined) {
-            if (typeof securityDeposit !== "number" || securityDeposit < 0) {
+            if (typeof securityDeposit !== "number" || isNaN(securityDeposit) || securityDeposit < 0) {
                 return res.status(422).json({ success: false, message: "securityDeposit must be a non-negative number" });
             }
         }
 
+        if (openingHour !== undefined) {
+            if (typeof openingHour !== "number" || isNaN(openingHour) || openingHour < 0 || openingHour > 23) {
+                return res.status(422).json({ success: false, message: "openingHour must be between 0 and 23" });
+            }
+        }
 
+        if (closingHour !== undefined) {
+            if (typeof closingHour !== "number" || isNaN(closingHour) || closingHour < 0 || closingHour > 23) {
+                return res.status(422).json({ success: false, message: "closingHour must be between 0 and 23" });
+            }
+        }
 
         const incoming = {
             propertyName, propertyType, propertyAddress, city, state,
             pincode, country, description, capacity, amenities,
-            pricePerHour, securityDeposit,
+            pricePerHour, securityDeposit, rentType, openingHour, closingHour,
         };
 
         const hasUpdate = Object.values(incoming).some((v) => v !== undefined);
@@ -309,7 +345,7 @@ const updateProperty = async (req, res) => {
         const trimmed = (val) => (typeof val === "string" ? val.trim() : val);
 
         const stringFields  = ["propertyName", "propertyAddress", "city", "state", "country", "description"];
-        const asIsFields    = ["propertyType", "pincode", "capacity", "amenities", "pricePerHour", "securityDeposit"];
+        const asIsFields    = ["propertyType", "pincode", "capacity", "amenities", "pricePerHour", "securityDeposit", "rentType"];
 
         stringFields.forEach((field) => {
             if (incoming[field] !== undefined) property[field] = trimmed(incoming[field]);
