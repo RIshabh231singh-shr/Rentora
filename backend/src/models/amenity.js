@@ -12,6 +12,11 @@ const AmenitySchema = new Schema({
         type : String,
         trim : true
     },
+    category : {
+        type : String,
+        trim : true,
+        default : "general"
+    },
     property : {
         type : Schema.Types.ObjectId,
         ref : "Property",
@@ -22,13 +27,30 @@ const AmenitySchema = new Schema({
         required : true,
         min : 1
     },
+    pricePerHour : {
+        type : Number,
+        default : 0,
+        min : 0
+    },
+    // Integer hour fields (0-23) — used by frontend
+    openingHour : {
+        type : Number,
+        default : 6,
+        min : 0,
+        max : 23
+    },
+    closingHour : {
+        type : Number,
+        default : 22,
+        min : 0,
+        max : 23
+    },
+    // Legacy Date fields — kept for backward compatibility with booking validation
     openingTime : {
-        type : Date,
-        required : true
+        type : Date
     },
     closingTime : {
-        type : Date,
-        required : true
+        type : Date
     },
     isActive : {
         type : Boolean,
@@ -45,7 +67,7 @@ const AmenitySchema = new Schema({
     },
 },{
     timestamps : true
-})
+});
 
 const Amenity = mongoose.model("Amenity", AmenitySchema);
 
