@@ -17,7 +17,7 @@ const {
     acceptTenantRequest,
     rejectTenantRequest,
     getPendingTenantRequests
-} = require("../controllers/propertymangement");
+} = require("../controllers/propertyManagement");
 
 // Landlord Routes
 router.post("/", landlordAuthMiddleware, upload.array("images", 5), createProperty);
