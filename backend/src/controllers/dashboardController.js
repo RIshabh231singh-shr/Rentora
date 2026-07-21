@@ -1,12 +1,23 @@
-const MaintenanceRequest = require("../models/maintainanceRequest");
+const MaintenanceRequest = require("../models/maintenanceRequest");
 const Booking = require("../models/booking");
 const Property = require("../models/property");
 const Notification = require("../models/notification");
 const Amenity = require("../models/amenity");
+const redisClient = require("../config/redis");
 
 const getDashboardData = async (req, res) => {
     try {
         const userId = req.user._id;
+        const cacheKey = `dashboard_${userId.toString()}`;
+
+        try {
+            const cachedData = await redisClient.get(cacheKey);
+            if (cachedData) {
+                return res.status(200).json(JSON.parse(cachedData));
+            }
+        } catch (redisErr) {
+            console.error("Redis get error:", redisErr);
+        }
 
         // Fetch counts & listings based on user role
         let recentRequests = [];
@@ -144,7 +155,7 @@ const getDashboardData = async (req, res) => {
             .limit(20)
             .lean();
 
-        res.status(200).json({
+        const responseData = {
             stats: {
                 activeRequests: activeRequestsCount,
                 completedRequests: completedRequestsCount,
@@ -158,7 +169,15 @@ const getDashboardData = async (req, res) => {
             pendingBookings: typeof pendingBookings !== "undefined" ? pendingBookings : [],
             pendingLeases: typeof pendingLeases !== "undefined" ? pendingLeases : [],
             notifications: notificationsList || []
-        });
+        };
+
+        try {
+            await redisClient.setEx(cacheKey, 600, JSON.stringify(responseData));
+        } catch (redisErr) {
+            console.error("Redis set error:", redisErr);
+        }
+
+        res.status(200).json(responseData);
     } catch (err) {
         console.error("getDashboardData error:", err);
         res.status(500).json({ message: "An error occurred while fetching dashboard data." });
@@ -171,6 +190,15 @@ const markNotificationsAsRead = async (req, res) => {
             { recipient: req.user._id, status: "unread" },
             { $set: { status: "read" } }
         );
+
+        // Clear dashboard cache to ensure updated notifications are fetched
+        const cacheKey = `dashboard_${req.user._id.toString()}`;
+        try {
+            await redisClient.del(cacheKey);
+        } catch (redisErr) {
+            console.error("Redis del error:", redisErr);
+        }
+
         return res.status(200).json({ success: true, message: "Notifications marked as read" });
     } catch (err) {
         console.error("markNotificationsAsRead error:", err);
