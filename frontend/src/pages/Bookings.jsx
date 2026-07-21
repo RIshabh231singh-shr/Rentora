@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar, Clock, Building2, Zap, ChevronDown, X,
@@ -188,21 +188,25 @@ export default function Bookings() {
     setCancelId(null);
   };
 
-  const now = new Date();
-  const filtered = bookings.filter(b => {
-    const start = new Date(b.bookingStartTime);
-    const end = new Date(b.bookingEndTime);
-    if (tab === "all") return true;
-    if (tab === "upcoming") return start > now && b.status !== "cancelled";
-    if (tab === "active") return start <= now && end >= now;
-    if (tab === "past") return end < now || b.status === "completed" || b.status === "checked_out";
-    if (tab === "cancelled") return b.status === "cancelled" || b.status === "rejected";
-    return true;
-  });
+  const { filtered, totalActive, totalUpcoming, totalPast } = useMemo(() => {
+    const now = new Date();
+    const filtered = bookings.filter(b => {
+      const start = new Date(b.bookingStartTime);
+      const end = new Date(b.bookingEndTime);
+      if (tab === "all") return true;
+      if (tab === "upcoming") return start > now && b.status !== "cancelled";
+      if (tab === "active") return start <= now && end >= now;
+      if (tab === "past") return end < now || b.status === "completed" || b.status === "checked_out";
+      if (tab === "cancelled") return b.status === "cancelled" || b.status === "rejected";
+      return true;
+    });
 
-  const totalActive = bookings.filter(b => { const s = new Date(b.bookingStartTime); const e = new Date(b.bookingEndTime); return s <= now && e >= now; }).length;
-  const totalUpcoming = bookings.filter(b => new Date(b.bookingStartTime) > now && b.status !== "cancelled").length;
-  const totalPast = bookings.filter(b => new Date(b.bookingEndTime) < now).length;
+    const totalActive = bookings.filter(b => { const s = new Date(b.bookingStartTime); const e = new Date(b.bookingEndTime); return s <= now && e >= now; }).length;
+    const totalUpcoming = bookings.filter(b => new Date(b.bookingStartTime) > now && b.status !== "cancelled").length;
+    const totalPast = bookings.filter(b => new Date(b.bookingEndTime) < now).length;
+
+    return { filtered, totalActive, totalUpcoming, totalPast };
+  }, [bookings, tab]);
 
   return (
     <Layout pageTitle="My Bookings">
