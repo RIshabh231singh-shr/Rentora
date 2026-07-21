@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const tenantAuthMiddleware = require("../middleware/tenantmiddleware");
+const landlordAuthMiddleware = require("../middleware/landlordmiddleware");
 
 const {
     bookAmenity,
@@ -16,14 +17,18 @@ const {
     getPropertySlotAvailability,
     approveBooking,
     rejectBooking,
+    approveCancellation,
+    rejectCancellation
 } = require("../controllers/bookingManagement");
 
 
 router.post("/book", tenantAuthMiddleware, bookAmenity);
 router.post("/property/book", tenantAuthMiddleware, bookProperty);
 router.get("/my", tenantAuthMiddleware, getMyBookings);
-router.put("/:bookingId/approve", tenantAuthMiddleware, approveBooking);
-router.put("/:bookingId/reject", tenantAuthMiddleware, rejectBooking);
+router.put("/:bookingId/approve", landlordAuthMiddleware, approveBooking);
+router.put("/:bookingId/reject", landlordAuthMiddleware, rejectBooking);
+router.put("/:bookingId/approve-cancellation", landlordAuthMiddleware, approveCancellation);
+router.put("/:bookingId/reject-cancellation", landlordAuthMiddleware, rejectCancellation);
 
 
 router.get("/amenity/:amenityId/availability", tenantAuthMiddleware, getSlotAvailability);
