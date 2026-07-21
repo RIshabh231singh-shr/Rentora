@@ -11,6 +11,8 @@ const amenityRoutes = require("./routes/amenities");
 const bookingRoutes = require("./routes/bookings");
 const maintenanceRoutes = require("./routes/maintenance");
 const dashboardRoutes = require("./routes/dashboard");
+const messageRoutes = require("./routes/messages");
+const Message = require("./models/message");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -34,6 +36,31 @@ io.on("connection", (socket) => {
     socket.on("register", (userId) => {
         socket.join(userId);
         console.log(`Socket ${socket.id} registered to user room ${userId}`);
+    });
+
+    socket.on("send_message", async (data) => {
+        try {
+            const { sender, receiver, text, image } = data;
+            const newMsg = await Message.create({ sender, receiver, text, image, read: false });
+            
+            // Emit to receiver
+            io.to(receiver).emit("new_message", newMsg);
+            // Emit back to sender (for acknowledgment)
+            io.to(sender).emit("message_sent", newMsg);
+        } catch (err) {
+            console.error("send_message error:", err);
+        }
+    });
+
+    socket.on("mark_read", async (data) => {
+        try {
+            const { sender, receiver } = data;
+            await Message.updateMany(
+                { sender, receiver, read: false },
+                { $set: { read: true } }
+            );
+            io.to(sender).emit("messages_read", { reader: receiver });
+        } catch (err) {}
     });
 
     socket.on("disconnect", () => {
@@ -62,6 +89,8 @@ app.use("/api/maintenance", maintenanceRoutes);
 app.use("/maintenance", maintenanceRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/dashboard", dashboardRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/messages", messageRoutes);
 
 const initializeConnection = async () => {
     try {

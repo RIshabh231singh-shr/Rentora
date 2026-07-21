@@ -3,6 +3,18 @@ const Property = require("../models/property");
 const User = require("../models/user");
 const Notification = require("../models/notification");
 const cloudinary = require("../config/cloudinary");
+const redisClient = require("../config/redis");
+
+const clearPropertiesCache = async () => {
+    try {
+        const keys = await redisClient.keys("properties_*");
+        if (keys.length > 0) {
+            await redisClient.del(keys);
+        }
+    } catch (err) {
+        console.error("Redis cache clear error:", err);
+    }
+};
 
 // Helper to stream file buffer to Cloudinary
 const uploadStream = (fileBuffer) => {
@@ -168,6 +180,8 @@ const createProperty = async (req, res) => {
         await User.findByIdAndUpdate(req.user.id, {
             $addToSet: { myProperties: property._id }
         });
+
+        await clearPropertiesCache();
 
         return res.status(201).json({
             success: true,
@@ -357,6 +371,8 @@ const updateProperty = async (req, res) => {
 
         await property.save();
 
+        await clearPropertiesCache();
+
         return res.status(200).json({
             success: true,
             message: "Property updated successfully",
@@ -408,6 +424,8 @@ const deleteProperty = async (req, res) => {
 
         await Property.findByIdAndDelete(propertyId);
 
+        await clearPropertiesCache();
+
         return res.status(200).json({
             success: true,
             message: "Property deleted successfully",
@@ -424,6 +442,12 @@ const deleteProperty = async (req, res) => {
 // GET /api/properties
 const getAllProperties = async (req, res) => {
     try {
+        const cacheKey = `properties_${JSON.stringify(req.query)}`;
+        try {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) return res.status(200).json(JSON.parse(cached));
+        } catch (err) {}
+
         const { city, propertyType, minPrice, maxPrice, country, state, myProperties } = req.query;
 
         // ── 1. Build filter ───────────────────────────────────────────
