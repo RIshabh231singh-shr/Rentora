@@ -210,20 +210,29 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
               >
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
                   <span className="font-bold text-slate-900 text-sm">Notifications</span>
-                  <Link
-                    to="/notifications"
-                    onClick={() => setNotifOpen(false)}
-                    className="text-xs text-blue-600 font-semibold hover:text-blue-700 no-underline"
+                  <button
+                    onClick={() => {
+                      setNotifOpen(false);
+                      navigate("/notifications");
+                    }}
+                    className="text-xs text-blue-600 font-semibold hover:text-blue-700 bg-transparent border-none cursor-pointer"
                   >
                     View all
-                  </Link>
+                  </button>
                 </div>
                 <div className="max-h-72 overflow-y-auto">
                   {notifications.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-8">No notifications yet</p>
                   ) : (
                     notifications.slice(0, 5).map(n => (
-                      <div key={n._id} className={`px-4 py-3 border-b border-slate-50 last:border-0 ${n.status === "unread" ? "bg-blue-50/40" : ""}`}>
+                      <div
+                        key={n._id}
+                        onClick={() => {
+                          setNotifOpen(false);
+                          navigate("/notifications");
+                        }}
+                        className={`px-4 py-3 border-b border-slate-50 last:border-0 cursor-pointer transition-colors ${n.status === "unread" ? "bg-blue-50/40 hover:bg-blue-50/80" : "hover:bg-slate-50"}`}
+                      >
                         <p className="text-sm font-semibold text-slate-900">{n.title}</p>
                         <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{n.message}</p>
                         <p className="text-[10px] text-slate-400 mt-1">{new Date(n.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
@@ -333,18 +342,30 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
     socket.on("notification", (data) => {
       const id = Date.now();
       const newNotif = {
-        _id: String(id),
+        _id: String(id) + Math.random().toString(36).substring(7),
         title: data.title || "New Notification",
         message: data.message || "",
         status: "unread",
         createdAt: new Date().toISOString(),
         type: data.type,
       };
-      setNotifications(prev => [newNotif, ...prev]);
+      setNotifications(prev => {
+        // Prevent duplicate socket emits (common in React StrictMode dev)
+        if (prev.length > 0) {
+          const last = prev[0];
+          if (last.title === newNotif.title && last.message === newNotif.message && (Date.now() - new Date(last.createdAt).getTime() < 2000)) {
+            return prev;
+          }
+        }
+        return [newNotif, ...prev];
+      });
       setToasts(prev => [...prev, { id, title: data.title, message: data.message, type: "info" }]);
       setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000);
     });
-    return () => socket.disconnect();
+    return () => {
+      socket.off("notification");
+      socket.disconnect();
+    };
   }, [user]);
 
   const handleLogout = async () => {
