@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Building2, Search, Wrench, Zap, Calendar,
   Bell, MessageSquare, User, Settings, LogOut, ChevronLeft,
-  ChevronRight, Menu, X, Home, Plus, ChevronDown,
+  ChevronRight, Menu, X, Home, Plus, ChevronDown, ShieldCheck,
 } from "lucide-react";
 import api from "../utility/axiosInstance";
 import { Avatar, Toast } from "./ui";
@@ -56,6 +56,10 @@ const buildNav = (role) => [
     items: [
       { label: "Profile", icon: User, to: "/profile" },
       { label: "Settings", icon: Settings, to: "/settings" },
+      ...(role === "admin"
+        ? [{ label: "Admin Panel", icon: ShieldCheck, to: "/admin" }]
+        : []
+      ),
     ],
   },
 ];
@@ -322,11 +326,10 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
     }).catch(() => {});
   }, [user]);
 
-  // Real-time notifications via socket
   useEffect(() => {
     if (!user) return;
     const socket = io("http://localhost:5000");
-    socket.emit("register", user.id);
+    socket.emit("register", user._id || user.id);
     socket.on("notification", (data) => {
       const id = Date.now();
       const newNotif = {
