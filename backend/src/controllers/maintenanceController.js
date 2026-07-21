@@ -1,4 +1,4 @@
-const MaintenanceRequest = require("../models/maintainanceRequest");
+const MaintenanceRequest = require("../models/maintenanceRequest");
 const Property = require("../models/property");
 const Booking = require("../models/booking");
 const Notification = require("../models/notification");
@@ -40,36 +40,30 @@ const createRequest = async (req, res) => {
             return res.status(400).json({ message: `Invalid category. Must be one of: ${validCategories.join(", ")}` });
         }
 
-        let property;
-        if (propertyId) {
-            if (!mongoose.Types.ObjectId.isValid(propertyId)) {
-                return res.status(400).json({ message: "Invalid property ID." });
-            }
-            property = await Property.findById(propertyId);
-            if (!property) {
-                return res.status(404).json({ message: "Property not found." });
-            }
-            const isTenant = property.tenants.some(t => t.toString() === req.user._id.toString());
-            
-            const hasBooking = await Booking.findOne({
-                user: req.user._id,
-                property: propertyId,
-                status: { $in: ["booked", "checked_in", "completed"] }
-            });
-
-            if (!isTenant && !hasBooking) {
-                return res.status(403).json({
-                    message: "You are not authorized to submit maintenance requests for this property."
-                });
-            }
-        } else {
-            // Find the property where this user is listed as a tenant
-            property = await Property.findOne({ tenants: req.user._id });
+        if (!propertyId) {
+            return res.status(400).json({ message: "Property ID is required to submit a maintenance request." });
         }
 
+        if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+            return res.status(400).json({ message: "Invalid property ID." });
+        }
+        
+        const property = await Property.findById(propertyId);
         if (!property) {
-            return res.status(400).json({
-                message: "You must specify a valid propertyId or be registered as a tenant in a property to submit a maintenance request."
+            return res.status(404).json({ message: "Property not found." });
+        }
+        
+        const isTenant = property.tenants.some(t => t.toString() === req.user._id.toString());
+        
+        const hasBooking = await Booking.findOne({
+            user: req.user._id,
+            property: propertyId,
+            status: { $in: ["booked", "checked_in", "completed"] }
+        });
+
+        if (!isTenant && !hasBooking) {
+            return res.status(403).json({
+                message: "You are not authorized to submit maintenance requests for this property."
             });
         }
 
@@ -231,8 +225,126 @@ const updateRequestStatus = async (req, res) => {
     }
 };
 
+const assignStaff = async (req, res) => {
+    try {
+        const mongoose = require("mongoose");
+        const { requestId } = req.params;
+        const { staffId, notes } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(requestId)) {
+            return res.status(400).json({ message: "Invalid request ID" });
+        }
+        if (staffId && !mongoose.Types.ObjectId.isValid(staffId)) {
+            return res.status(400).json({ message: "Invalid staff ID" });
+        }
+
+        const request = await MaintenanceRequest.findById(requestId)
+            .populate("property", "owner propertyName")
+            .populate("user", "_id firstname lastname");
+
+        if (!request) {
+            return res.status(404).json({ message: "Maintenance request not found" });
+        }
+
+        const isOwner = request.property?.owner?.toString() === req.user._id.toString();
+        const isAdmin = req.user.role === "admin";
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ message: "Not authorized to assign staff" });
+        }
+
+        if (staffId) {
+            const User = require("../models/user");
+            const staff = await User.findById(staffId).select("firstname lastname role");
+            if (!staff) return res.status(404).json({ message: "Staff member not found" });
+            request.assignedStaff = staffId;
+        } else {
+            request.assignedStaff = null;
+        }
+
+        if (request.status === "pending") request.status = "assigned";
+        if (notes) request.resolutionNotes = notes;
+        await request.save();
+
+        // Real-time push to tenant
+        if (global.io) {
+            global.io.to(request.user._id.toString()).emit("notification", {
+                type: "MAINTENANCE_STATUS_CHANGED",
+                title: "Staff Assigned",
+                message: `A staff member has been assigned to your request "${request.title}".`
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: staffId ? "Staff assigned successfully" : "Staff assignment cleared",
+            data: request
+        });
+    } catch (err) {
+        console.error("assignStaff error:", err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+const getMaintenanceKPIs = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const role = req.user.role;
+
+        let filter = {};
+        if (role === "tenant") {
+            filter.user = userId;
+        } else if (role === "landlord") {
+            const properties = await Property.find({ owner: userId }).select("_id");
+            filter.property = { $in: properties.map(p => p._id) };
+        }
+        // admin: no filter (all requests)
+
+        const total = await MaintenanceRequest.countDocuments(filter);
+        const resolved = await MaintenanceRequest.countDocuments({ ...filter, status: "resolved" });
+        const pending = await MaintenanceRequest.countDocuments({ ...filter, status: "pending" });
+        const inProgress = await MaintenanceRequest.countDocuments({ ...filter, status: { $in: ["assigned", "in_progress"] } });
+
+        // Average resolution time (only for resolved requests that have resolvedAt)
+        const resolvedRequests = await MaintenanceRequest.find({
+            ...filter,
+            status: "resolved",
+            resolvedAt: { $exists: true, $ne: null }
+        }).select("createdAt resolvedAt").lean();
+
+        let avgResolutionHours = null;
+        if (resolvedRequests.length > 0) {
+            const totalMs = resolvedRequests.reduce((sum, r) => {
+                return sum + (new Date(r.resolvedAt) - new Date(r.createdAt));
+            }, 0);
+            avgResolutionHours = Math.round((totalMs / resolvedRequests.length) / (1000 * 60 * 60) * 10) / 10;
+        }
+
+        const completionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+        const meetsSLA = avgResolutionHours !== null ? avgResolutionHours <= 48 : null;
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                total,
+                resolved,
+                pending,
+                inProgress,
+                completionRate,
+                avgResolutionHours,
+                meetsSLA,
+                slaTarget: 48
+            }
+        });
+    } catch (err) {
+        console.error("getMaintenanceKPIs error:", err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 module.exports = {
     createRequest,
     getRequests,
-    updateRequestStatus
+    updateRequestStatus,
+    assignStaff,
+    getMaintenanceKPIs
 };
