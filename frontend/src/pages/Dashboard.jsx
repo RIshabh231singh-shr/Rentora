@@ -127,6 +127,7 @@ function PropertyRentalCard({ property }) {
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
+  const [kpi, setKpi] = useState(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
@@ -137,8 +138,12 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const res = await api.get("/dashboard");
-      setData(res.data);
+      const [dashRes, kpiRes] = await Promise.all([
+        api.get("/dashboard"),
+        api.get("/maintenance/kpi").catch(() => ({ data: { data: null } }))
+      ]);
+      setData(dashRes.data);
+      setKpi(kpiRes.data.data);
     } catch {}
     finally { setLoading(false); }
   };
@@ -221,6 +226,45 @@ export default function Dashboard() {
             <StatCard loading={loading} label="Amenity Bookings" value={stats?.amenityBookings ?? 0} icon={<Zap className="size-5" />} color="indigo" change="Total booked" />
           </motion.div>
         </div>
+
+        {/* KPI Widgets */}
+        {kpi && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+              className="rounded-2xl p-5 border"
+              style={{ background: kpi.completionRate >= 90 ? "linear-gradient(135deg,#ecfdf5,#d1fae5)" : "linear-gradient(135deg,#fffbeb,#fef3c7)", borderColor: kpi.completionRate >= 90 ? "#a7f3d0" : "#fde68a" }}
+            >
+              <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: kpi.completionRate >= 90 ? "#059669" : "#d97706" }}>Completion Rate</p>
+              <p className="text-3xl font-extrabold" style={{ color: kpi.completionRate >= 90 ? "#047857" : "#b45309" }}>{kpi.completionRate}%</p>
+              <p className="text-xs mt-1" style={{ color: kpi.completionRate >= 90 ? "#065f46" : "#92400e" }}>Target ≥ 90% · {kpi.resolved}/{kpi.total} resolved</p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+              className="rounded-2xl p-5 border"
+              style={{ background: kpi.meetsSLA === false ? "linear-gradient(135deg,#fff1f2,#ffe4e6)" : "linear-gradient(135deg,#eff6ff,#dbeafe)", borderColor: kpi.meetsSLA === false ? "#fecdd3" : "#bfdbfe" }}
+            >
+              <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: kpi.meetsSLA === false ? "#e11d48" : "#2563eb" }}>Avg Resolution Time</p>
+              <p className="text-3xl font-extrabold" style={{ color: kpi.meetsSLA === false ? "#be123c" : "#1d4ed8" }}>
+                {kpi.avgResolutionHours != null ? `${kpi.avgResolutionHours}h` : "N/A"}
+              </p>
+              <p className="text-xs mt-1" style={{ color: kpi.meetsSLA === false ? "#9f1239" : "#1e40af" }}>
+                {kpi.meetsSLA === true ? "✅ Within 48h SLA" : kpi.meetsSLA === false ? "⚠️ Exceeds 48h SLA" : "No resolved data yet"}
+              </p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+              className="rounded-2xl p-5 border bg-slate-50 border-slate-200"
+            >
+              <p className="text-xs font-bold uppercase tracking-wider mb-2 text-slate-500">Request Breakdown</p>
+              <div className="flex flex-col gap-1.5 mt-2">
+                <div className="flex justify-between items-center"><span className="text-xs text-slate-600">Pending</span><span className="text-xs font-bold text-amber-600">{kpi.pending}</span></div>
+                <div className="flex justify-between items-center"><span className="text-xs text-slate-600">In Progress</span><span className="text-xs font-bold text-blue-600">{kpi.inProgress}</span></div>
+                <div className="flex justify-between items-center"><span className="text-xs text-slate-600">Resolved</span><span className="text-xs font-bold text-emerald-600">{kpi.resolved}</span></div>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {/* Quick Actions */}
         <GlassCard className="mb-8 p-5">
