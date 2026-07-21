@@ -20,6 +20,7 @@ import Notifications from "./pages/Notifications";
 import Messages from "./pages/Messages";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
+import Admin from "./pages/Admin";
 
 /* ===================================================
    LANDING SCREEN (unauthenticated)
@@ -143,6 +144,40 @@ function LogoutRoute() {
 }
 
 /* ===================================================
+   404 NOT FOUND PAGE
+   =================================================== */
+function NotFound() {
+  const navigate = useNavigate();
+  return (
+    <div
+      className="min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden"
+      style={{ background: "linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0F172A 100%)" }}
+    >
+      <div className="absolute w-80 h-80 rounded-full" style={{ background: "rgba(37,99,235,0.10)", top: "15%", left: "15%", filter: "blur(80px)" }} />
+      <div className="absolute w-64 h-64 rounded-full" style={{ background: "rgba(79,70,229,0.10)", bottom: "15%", right: "15%", filter: "blur(80px)" }} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="text-center z-10"
+        style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "28px", padding: "48px 40px", maxWidth: 420 }}
+      >
+        <div className="text-7xl font-extrabold mb-4" style={{ background: "linear-gradient(135deg, #2563EB, #4F46E5)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>404</div>
+        <h2 className="text-2xl font-bold text-white mb-2">Page Not Found</h2>
+        <p className="text-slate-400 text-sm mb-8">The page you're looking for doesn't exist or has been moved.</p>
+        <button
+          onClick={() => navigate("/")}
+          className="w-full py-3 px-6 rounded-2xl font-bold text-white cursor-pointer border-none transition-all duration-200 hover:-translate-y-0.5"
+          style={{ background: "linear-gradient(135deg, #2563EB, #4F46E5)", boxShadow: "0 8px 32px rgba(37,99,235,0.35)" }}
+        >
+          Back to Rentora
+        </button>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ===================================================
    APP ROUTER
    =================================================== */
 export default function App() {
@@ -160,7 +195,7 @@ export default function App() {
         <Route path="/" element={<HomeRoute />} />
         <Route path="/explore" element={<FindProperties />} />
         <Route path="/properties" element={<Properties />} />
-        <Route path="/my-rentals" element={<FindProperties />} />
+        <Route path="/my-rentals" element={<FindProperties myRentalsMode={true} />} />
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/amenities" element={<Amenities />} />
         <Route path="/bookings" element={<Bookings />} />
@@ -168,6 +203,10 @@ export default function App() {
         <Route path="/messages" element={<Messages />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/admin" element={<Admin />} />
+
+        {/* 404 Fallback */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );
