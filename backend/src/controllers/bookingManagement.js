@@ -3,6 +3,7 @@ const Amenity = require("../models/amenity");
 const Booking = require("../models/booking");
 const Property = require("../models/property");
 const Notification = require("../models/notification");
+const redisClient = require("../config/redis");
 
 // ─────────────────────────────────────────────────────────────
 //  BOOKING MANAGEMENT (Tenants / Admins)
@@ -55,24 +56,30 @@ const bookAmenity = async (req, res) => {
         }
 
         // ── OPERATING HOURS CHECK ───────────────────────────────────
-        const amenityOpen = new Date(amenity.openingTime);
-        const amenityClose = new Date(amenity.closingTime);
-        
-        const startMins = start.getHours() * 60 + start.getMinutes();
-        const endMins = end.getHours() * 60 + end.getMinutes();
-        const openMins = amenityOpen.getHours() * 60 + amenityOpen.getMinutes();
-        
-        // Handle midnight closing time
-        let closeMins = amenityClose.getHours() * 60 + amenityClose.getMinutes();
+        // Prefer new integer hour fields; fall back to legacy Date fields
+        let openMins, closeMins;
+        if (amenity.openingHour !== undefined && amenity.closingHour !== undefined) {
+            openMins  = amenity.openingHour  * 60;
+            closeMins = amenity.closingHour  * 60;
+        } else {
+            const amenityOpen  = new Date(amenity.openingTime);
+            const amenityClose = new Date(amenity.closingTime);
+            openMins  = amenityOpen.getHours()  * 60 + amenityOpen.getMinutes();
+            closeMins = amenityClose.getHours() * 60 + amenityClose.getMinutes();
+        }
         if (closeMins === 0) closeMins = 24 * 60; // 00:00 means end of day
 
+        const startMins = start.getHours() * 60 + start.getMinutes();
+        const endMins   = end.getHours()   * 60 + end.getMinutes();
+
         if (startMins < openMins || endMins > closeMins || startMins >= endMins) {
-            const formatTime = (date) => date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-            return res.status(400).json({ 
-                success: false, 
-                message: `Booking must be strictly within operating hours (${formatTime(amenityOpen)} to ${formatTime(amenityClose)})` 
+            const fmtHour = (h) => `${h % 12 || 12}:00 ${h < 12 ? "AM" : "PM"}`;
+            return res.status(400).json({
+                success: false,
+                message: `Booking must be within operating hours (${fmtHour(amenity.openingHour ?? openMins/60)} to ${fmtHour(amenity.closingHour ?? closeMins/60)})`
             });
         }
+
 
         // ── DOUBLE-BOOKING PREVENTION ───────────────────────────────
         // Check if user already has a booking that overlaps with this time
@@ -202,7 +209,19 @@ const getMyBookings = async (req, res) => {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
 
-        const { status, upcoming } = req.query;
+        const { status, upcoming, page, limit } = req.query;
+
+        // ── Pagination ───────────────────────────────────────────
+        const pageNum  = Math.max(1, parseInt(page)  || 1);
+        const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 20)); // default 20, max 50
+        const skip     = (pageNum - 1) * limitNum;
+
+        const cacheKey = `my_bookings_${req.user.id}_${status || "all"}_${upcoming || "false"}_p${pageNum}_l${limitNum}`;
+
+        try {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) return res.status(200).json(JSON.parse(cached));
+        } catch (err) {}
 
         let filter = { user: req.user.id };
 
@@ -210,19 +229,35 @@ const getMyBookings = async (req, res) => {
             filter.status = status;
         }
 
-        // If 'upcoming' param is set, only fetch future bookings
         if (upcoming === "true") {
             filter.bookingStartTime = { $gte: new Date() };
             filter.status = { $in: ["booked", "checked_in"] };
         }
 
-        const bookings = await Booking.find(filter)
-            .populate("amenity", "name description")
-            .populate("property", "propertyName propertyAddress")
-            .sort({ bookingStartTime: -1 })
-            .lean();
+        const [bookings, totalCount] = await Promise.all([
+            Booking.find(filter)
+                .populate("amenity", "name description")
+                .populate("property", "propertyName propertyAddress")
+                .sort({ bookingStartTime: -1 })
+                .skip(skip)
+                .limit(limitNum)
+                .lean(),
+            Booking.countDocuments(filter)
+        ]);
 
-        return res.status(200).json(bookings);
+        const response = {
+            success: true,
+            bookings,
+            totalCount,
+            totalPages: Math.ceil(totalCount / limitNum),
+            currentPage: pageNum,
+        };
+
+        try {
+            await redisClient.setEx(cacheKey, 120, JSON.stringify(response));
+        } catch (err) {}
+
+        return res.status(200).json(response);
 
     } catch (err) {
         console.error("getMyBookings error:", err);
@@ -440,36 +475,120 @@ const cancelBooking = async (req, res) => {
             return res.status(400).json({ success: false, message: "Booking is already cancelled" });
         }
 
-        booking.status = "cancelled";
-        await booking.save();
+        if (isPropertyOwner || isAdmin) {
+            booking.status = "cancelled";
+            await booking.save();
 
-        // Fire notification (non-blocking)
-        Notification.create({
-            recipient: booking.user,
-            type: "BOOKING_CANCELLED",
-            title: "Booking Cancelled",
-            message: `Your booking for ${booking.amenity?.name || "amenity"} has been cancelled.`,
-            relatedProperty: booking.property,
-            relatedUser: req.user.id,
-            status: "unread"
-        }).catch(err => console.error("Cancel notification failed:", err));
+            // Fire notification
+            Notification.create({
+                recipient: booking.user,
+                type: "BOOKING_CANCELLED",
+                title: "Booking Cancelled",
+                message: `Your booking for ${booking.amenity?.name || "property"} has been cancelled by the owner.`,
+                relatedProperty: booking.property,
+                relatedUser: req.user.id,
+                status: "unread"
+            }).catch(err => console.error("Cancel notification failed:", err));
 
-        return res.status(200).json({
-            success: true,
-            message: "Booking cancelled successfully",
-            data: {
-                bookingId: booking._id,
-                status: "cancelled",
-                cancelledBy: {
-                    id: req.user.id,
-                    role: req.user.role,
-                    type: isBookingOwner ? "SELF" : isPropertyOwner ? "LANDLORD" : "ADMIN"
-                }
-            }
-        });
+            return res.status(200).json({
+                success: true,
+                message: "Booking cancelled successfully",
+                data: { bookingId: booking._id, status: "cancelled" }
+            });
+        } else {
+            // Tenant requesting cancellation
+            booking.status = "cancellation_requested";
+            await booking.save();
+
+            Notification.create({
+                recipient: prop.owner,
+                type: "BOOKING_CANCELLED",
+                title: "Cancellation Request",
+                message: `Tenant has requested to cancel their booking for ${booking.amenity?.name || "property"}.`,
+                relatedProperty: booking.property,
+                relatedBooking: booking._id,
+                relatedUser: req.user.id,
+                status: "unread"
+            }).catch(err => console.error("Cancel request notification failed:", err));
+
+            return res.status(200).json({
+                success: true,
+                message: "Cancellation request sent to owner for approval.",
+                data: { bookingId: booking._id, status: "cancellation_requested" }
+            });
+        }
 
     } catch (err) {
         console.error("cancelBooking error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+// PUT /api/bookings/:bookingId/approve-cancellation
+const approveCancellation = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const booking = await Booking.findById(bookingId).populate("property");
+        if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+
+        if (booking.status !== "cancellation_requested") {
+            return res.status(400).json({ success: false, message: "Booking is not pending cancellation" });
+        }
+
+        const isOwner = booking.property?.owner?.toString() === req.user.id.toString();
+        const isAdmin = req.user.role === "admin";
+        if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: "Unauthorized" });
+
+        booking.status = "cancelled";
+        await booking.save();
+
+        Notification.create({
+            recipient: booking.user,
+            type: "BOOKING_CANCELLED",
+            title: "Cancellation Approved",
+            message: `Your cancellation request for ${booking.property?.propertyName} has been approved.`,
+            relatedProperty: booking.property._id,
+            relatedBooking: booking._id,
+            status: "unread"
+        }).catch(() => {});
+
+        return res.status(200).json({ success: true, message: "Cancellation approved successfully." });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+// PUT /api/bookings/:bookingId/reject-cancellation
+const rejectCancellation = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const booking = await Booking.findById(bookingId).populate("property");
+        if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+
+        if (booking.status !== "cancellation_requested") {
+            return res.status(400).json({ success: false, message: "Booking is not pending cancellation" });
+        }
+
+        const isOwner = booking.property?.owner?.toString() === req.user.id.toString();
+        const isAdmin = req.user.role === "admin";
+        if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: "Unauthorized" });
+
+        // Revert to booked (or pending depending on logic, assuming booked)
+        booking.status = "booked"; 
+        await booking.save();
+
+        Notification.create({
+            recipient: booking.user,
+            type: "BOOKING_REJECTED",
+            title: "Cancellation Rejected",
+            message: `Your cancellation request for ${booking.property?.propertyName} was rejected by the owner.`,
+            relatedProperty: booking.property._id,
+            relatedBooking: booking._id,
+            status: "unread"
+        }).catch(() => {});
+
+        return res.status(200).json({ success: true, message: "Cancellation request rejected." });
+    } catch (err) {
         return res.status(500).json({ success: false, message: "Internal server error" });
     }
 };
@@ -842,4 +961,6 @@ module.exports = {
     getPropertySlotAvailability,
     approveBooking,
     rejectBooking,
+    approveCancellation,
+    rejectCancellation
 };
