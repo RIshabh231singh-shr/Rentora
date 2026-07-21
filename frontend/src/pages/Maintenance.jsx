@@ -101,13 +101,21 @@ function CreateRequestModal({ open, onClose, onCreated }) {
   }, []);
 
   useEffect(() => {
-    if (!open) return;
-    api.get("/dashboard").then(r => {
-      const props = r.data.rentedProperties || [];
-      setProperties(props);
-      if (props.length > 0) setForm(f => ({ ...f, propertyId: props[0]._id }));
-    }).catch(() => {});
-  }, [open]);
+    if (!open || !user) return;
+    if (user.role === "landlord" || user.role === "admin") {
+      api.get("/properties").then(r => {
+        const props = r.data.data || [];
+        setProperties(props);
+        if (props.length > 0) setForm(f => ({ ...f, propertyId: props[0]._id }));
+      }).catch(() => {});
+    } else {
+      api.get("/dashboard").then(r => {
+        const props = r.data.rentedProperties || [];
+        setProperties(props);
+        if (props.length > 0) setForm(f => ({ ...f, propertyId: props[0]._id }));
+      }).catch(() => {});
+    }
+  }, [open, user]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -197,8 +205,37 @@ function CreateRequestModal({ open, onClose, onCreated }) {
 }
 
 function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
-  if (!req) return null;
+  const [staffList, setStaffList] = useState([]);
+  const [selectedStaff, setSelectedStaff] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignMsg, setAssignMsg] = useState("");
   const isLandlord = user?.role === "landlord" || user?.role === "admin";
+
+  useEffect(() => {
+    if (!open || !isLandlord) return;
+    // Fetch users that can be assigned as staff (maintenance_staff or tenant)
+    api.get("/properties").then(r => {
+      // We don't have a direct users endpoint, so we'll show a manual ID field
+      // If you have a users list endpoint for admins, use that here
+    }).catch(() => {});
+  }, [open, isLandlord]);
+
+  const handleAssign = async () => {
+    if (!selectedStaff.trim()) return;
+    setAssigning(true);
+    setAssignMsg("");
+    try {
+      await api.put(`/maintenance/${req._id}/assign`, { staffId: selectedStaff.trim() });
+      setAssignMsg("Staff assigned successfully!");
+      setSelectedStaff("");
+    } catch (err) {
+      setAssignMsg(err.response?.data?.message || "Assignment failed.");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  if (!req) return null;
 
   return (
     <Modal open={open} onClose={onClose} title="Request Details" width="max-w-lg">
@@ -230,6 +267,16 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
             <p className="text-xs text-slate-400 mb-0.5">Created</p>
             <p className="text-sm font-semibold text-slate-900">{new Date(req.createdAt).toLocaleDateString()}</p>
           </div>
+          {req.assignedStaff && (
+            <div className="col-span-2 p-3 rounded-xl bg-blue-50 border border-blue-100">
+              <p className="text-xs text-blue-500 mb-0.5">Assigned Staff</p>
+              <p className="text-sm font-semibold text-blue-900">
+                {req.assignedStaff?.firstname
+                  ? `${req.assignedStaff.firstname} ${req.assignedStaff.lastname || ""}`
+                  : req.assignedStaff}
+              </p>
+            </div>
+          )}
         </div>
         {req.description && (
           <div>
@@ -237,18 +284,47 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
             <p className="text-sm text-slate-700 leading-relaxed">{req.description}</p>
           </div>
         )}
-        {isLandlord && req.status !== "resolved" && (
-          <div className="pt-2 border-t border-slate-100 flex gap-2">
-            {req.status === "pending" && (
-              <GradientButton onClick={() => { onStatusChange(req._id, "in_progress"); onClose(); }} icon={<Zap className="size-4" />}>
-                Mark In Progress
-              </GradientButton>
-            )}
-            {(req.status === "pending" || req.status === "in_progress") && (
-              <GradientButton variant="success" onClick={() => { onStatusChange(req._id, "resolved"); onClose(); }} icon={<CheckCircle2 className="size-4" />}>
-                Mark Resolved
-              </GradientButton>
-            )}
+        {req.resolutionNotes && (
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+            <p className="text-xs font-semibold text-emerald-600 mb-0.5">Resolution Notes</p>
+            <p className="text-sm text-emerald-800">{req.resolutionNotes}</p>
+          </div>
+        )}
+        {isLandlord && req.status !== "resolved" && req.status !== "cancelled" && (
+          <div className="pt-2 border-t border-slate-100 flex flex-col gap-3">
+            {/* Status actions */}
+            <div className="flex gap-2">
+              {req.status === "pending" && (
+                <GradientButton onClick={() => { onStatusChange(req._id, "in_progress"); onClose(); }} icon={<Zap className="size-4" />}>
+                  Mark In Progress
+                </GradientButton>
+              )}
+              {(req.status === "pending" || req.status === "in_progress" || req.status === "assigned") && (
+                <GradientButton variant="success" onClick={() => { onStatusChange(req._id, "resolved"); onClose(); }} icon={<CheckCircle2 className="size-4" />}>
+                  Mark Resolved
+                </GradientButton>
+              )}
+            </div>
+            {/* Staff assignment */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Assign Staff Member</p>
+              <div className="flex gap-2">
+                <input
+                  className="form-input flex-1 text-sm"
+                  placeholder="Paste staff user ID here"
+                  value={selectedStaff}
+                  onChange={e => setSelectedStaff(e.target.value)}
+                />
+                <GradientButton size="sm" onClick={handleAssign} loading={assigning}>
+                  Assign
+                </GradientButton>
+              </div>
+              {assignMsg && (
+                <p className={`text-xs mt-2 font-medium ${assignMsg.includes("success") ? "text-emerald-600" : "text-red-500"}`}>
+                  {assignMsg}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>
