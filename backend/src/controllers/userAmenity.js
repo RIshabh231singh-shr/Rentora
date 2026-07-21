@@ -11,13 +11,13 @@ const createAmenity = async (req, res) => {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
 
-        const { name, description, property, capacity, openingTime, closingTime, slotDuration } = req.body;
+        const { name, description, property, capacity, openingTime, closingTime, slotDuration,
+                category, pricePerHour, openingHour, closingHour } = req.body;
 
-        // ── Validate required fields ────────────────────────────────
-        if (!name || !property || !capacity || !openingTime || !closingTime) {
+        if (!name || !property || !capacity) {
             return res.status(422).json({
                 success: false,
-                message: "Missing required fields: name, property, capacity, openingTime, closingTime"
+                message: "Missing required fields: name, property, capacity"
             });
         }
 
@@ -25,7 +25,6 @@ const createAmenity = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid property ID" });
         }
 
-        // Verify property exists and requester owns it (or is admin)
         const propertyDoc = await Property.findById(property).select("owner").lean();
         if (!propertyDoc) {
             return res.status(404).json({ success: false, message: "Property not found" });
@@ -37,23 +36,39 @@ const createAmenity = async (req, res) => {
             return res.status(403).json({ success: false, message: "Only the property owner or admin can create amenities" });
         }
 
-        if (typeof capacity !== "number" || capacity < 1 || !Number.isInteger(capacity)) {
+        const capNum = Number(capacity);
+        if (isNaN(capNum) || capNum < 1 || !Number.isInteger(capNum)) {
             return res.status(422).json({ success: false, message: "capacity must be a positive integer" });
         }
 
-        const opening = new Date(openingTime);
-        const closing = new Date(closingTime);
-        if (isNaN(opening.getTime()) || isNaN(closing.getTime())) {
-            return res.status(422).json({ success: false, message: "openingTime and closingTime must be valid dates" });
+        // Resolve openingHour / closingHour (prefer integer fields, fall back to Date parsing)
+        let openHour = openingHour !== undefined ? Number(openingHour) : null;
+        let closeHour = closingHour !== undefined ? Number(closingHour) : null;
+
+        if (openHour === null && openingTime) openHour = new Date(openingTime).getHours();
+        if (closeHour === null && closingTime) closeHour = new Date(closingTime).getHours();
+
+        // Legacy Date fields for backward compat
+        let openDate = openingTime ? new Date(openingTime) : null;
+        let closeDate = closingTime ? new Date(closingTime) : null;
+        if (!openDate && openHour !== null) {
+            openDate = new Date(); openDate.setHours(openHour, 0, 0, 0);
+        }
+        if (!closeDate && closeHour !== null) {
+            closeDate = new Date(); closeDate.setHours(closeHour, 0, 0, 0);
         }
 
         const amenity = await Amenity.create({
             name: name.trim(),
             description: description?.trim() || "",
             property,
-            capacity,
-            openingTime: opening,
-            closingTime: closing,
+            capacity: capNum,
+            category: category?.trim() || "general",
+            pricePerHour: pricePerHour !== undefined ? Number(pricePerHour) : 0,
+            openingHour: openHour ?? 6,
+            closingHour: closeHour ?? 22,
+            openingTime: openDate,
+            closingTime: closeDate,
             slotDuration: slotDuration || 1,
             isActive: true,
         });
@@ -151,16 +166,22 @@ const updateAmenity = async (req, res) => {
             return res.status(403).json({ success: false, message: "Unauthorized to update this amenity" });
         }
 
-        const { name, description, capacity, openingTime, closingTime, slotDuration, isActive } = req.body;
+        const { name, description, capacity, openingTime, closingTime, slotDuration, isActive,
+                category, pricePerHour, openingHour, closingHour } = req.body;
 
         if (name !== undefined) amenity.name = name.trim();
         if (description !== undefined) amenity.description = description.trim();
+        if (category !== undefined) amenity.category = category.trim();
+        if (pricePerHour !== undefined) amenity.pricePerHour = Number(pricePerHour);
         if (capacity !== undefined) {
-            if (typeof capacity !== "number" || capacity < 1) {
+            const capNum = Number(capacity);
+            if (isNaN(capNum) || capNum < 1) {
                 return res.status(422).json({ success: false, message: "capacity must be a positive integer" });
             }
-            amenity.capacity = capacity;
+            amenity.capacity = capNum;
         }
+        if (openingHour !== undefined) amenity.openingHour = Number(openingHour);
+        if (closingHour !== undefined) amenity.closingHour = Number(closingHour);
         if (openingTime !== undefined) amenity.openingTime = new Date(openingTime);
         if (closingTime !== undefined) amenity.closingTime = new Date(closingTime);
         if (slotDuration !== undefined) amenity.slotDuration = slotDuration;
