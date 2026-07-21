@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Settings, Bell, Shield, Palette, User, Save, Moon, Sun, Monitor, Check, ChevronRight, LogOut } from "lucide-react";
+import { Bell, Shield, Palette, User, Save, Moon, Sun, Monitor, Check, LogOut } from "lucide-react";
 import Layout from "../components/Layout";
 import { GlassCard, GradientButton, SectionHeader } from "../components/ui";
 import api from "../utility/axiosInstance";
@@ -67,17 +67,57 @@ export default function SettingsPage() {
     localStorage.setItem("rentora_prefs", JSON.stringify(updated));
   };
 
+  const [profileForm, setProfileForm] = useState({ firstname: "", lastname: "", phoneNumber: "" });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [passMsg, setPassMsg] = useState("");
+  const [profMsg, setProfMsg] = useState("");
+
   useEffect(() => {
     const s = localStorage.getItem("user");
-    if (s) setUser(JSON.parse(s));
+    if (s) {
+      const u = JSON.parse(s);
+      setUser(u);
+      setProfileForm({ firstname: u.firstname || "", lastname: u.lastname || "", phoneNumber: u.phoneNumber || "" });
+    }
   }, []);
 
-  const handleSave = async () => {
+  const handleSaveProfile = async () => {
     setSaving(true);
-    await new Promise(r => setTimeout(r, 800));
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setProfMsg("");
+    try {
+      await api.patch("/auth/profile", profileForm);
+      const updated = { ...user, ...profileForm };
+      localStorage.setItem("user", JSON.stringify(updated));
+      setUser(updated);
+      setSaved(true);
+      setProfMsg("Profile updated successfully!");
+      setTimeout(() => { setSaved(false); setProfMsg(""); }, 2500);
+    } catch (err) {
+      setProfMsg(err.response?.data?.message || "Failed to save profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPassMsg("New passwords do not match.");
+      return;
+    }
+    setSaving(true);
+    setPassMsg("");
+    try {
+      await api.patch("/auth/change-password", {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      });
+      setPassMsg("Password updated successfully!");
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (err) {
+      setPassMsg(err.response?.data?.message || "Failed to update password.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -98,7 +138,7 @@ export default function SettingsPage() {
             ].map(({ label, key }) => (
               <div key={key}>
                 <label className="form-label">{label}</label>
-                <input className="form-input" defaultValue={user?.[key]} />
+                <input className="form-input" value={profileForm[key]} onChange={e => setProfileForm(f => ({ ...f, [key]: e.target.value }))} />
               </div>
             ))}
             <div className="col-span-2">
@@ -108,11 +148,12 @@ export default function SettingsPage() {
             </div>
             <div className="col-span-2">
               <label className="form-label">Phone Number</label>
-              <input className="form-input" defaultValue={user?.phoneNumber} placeholder="+91 XXXXX XXXXX" />
+              <input className="form-input" value={profileForm.phoneNumber} onChange={e => setProfileForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
             </div>
           </div>
+          {profMsg && <p className={`text-sm mt-3 font-medium ${profMsg.includes("success") ? "text-emerald-600" : "text-red-600"}`}>{profMsg}</p>}
           <div className="mt-4">
-            <GradientButton onClick={handleSave} loading={saving} icon={saved ? <Check className="size-4" /> : <Save className="size-4" />}>
+            <GradientButton onClick={handleSaveProfile} loading={saving} icon={saved ? <Check className="size-4" /> : <Save className="size-4" />}>
               {saved ? "Saved!" : "Save Changes"}
             </GradientButton>
           </div>
@@ -123,19 +164,20 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-3">
             <div>
               <label className="form-label">Current Password</label>
-              <input type="password" className="form-input" placeholder="••••••••" />
+              <input type="password" value={passwordForm.currentPassword} onChange={e => setPasswordForm(f => ({ ...f, currentPassword: e.target.value }))} className="form-input" placeholder="••••••••" />
             </div>
             <div>
               <label className="form-label">New Password</label>
-              <input type="password" className="form-input" placeholder="••••••••" />
+              <input type="password" value={passwordForm.newPassword} onChange={e => setPasswordForm(f => ({ ...f, newPassword: e.target.value }))} className="form-input" placeholder="••••••••" />
             </div>
             <div>
               <label className="form-label">Confirm New Password</label>
-              <input type="password" className="form-input" placeholder="••••••••" />
+              <input type="password" value={passwordForm.confirmPassword} onChange={e => setPasswordForm(f => ({ ...f, confirmPassword: e.target.value }))} className="form-input" placeholder="••••••••" />
             </div>
           </div>
+          {passMsg && <p className={`text-sm mt-3 font-medium ${passMsg.includes("success") ? "text-emerald-600" : "text-red-600"}`}>{passMsg}</p>}
           <div className="mt-4">
-            <GradientButton onClick={handleSave} loading={saving}>Update Password</GradientButton>
+            <GradientButton onClick={handleUpdatePassword} loading={saving}>Update Password</GradientButton>
           </div>
         </GlassCard>
 

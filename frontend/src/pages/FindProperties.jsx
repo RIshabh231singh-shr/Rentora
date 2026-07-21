@@ -148,7 +148,7 @@ function HourPicker({ openingHour, closingHour, bookedIntervals, startHour, endH
   );
 }
 
-export default function FindProperties() {
+export default function FindProperties({ myRentalsMode = false }) {
   const [user, setUser] = useState(null);
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -279,6 +279,10 @@ export default function FindProperties() {
 
   // Filtered properties
   const filtered = properties.filter(p => {
+    if (myRentalsMode && user) {
+      const isTenant = p.tenants?.some(t => t === user.id || t._id === user.id);
+      if (!isTenant) return false;
+    }
     const q = search.toLowerCase();
     const matchSearch = !q || p.propertyName?.toLowerCase().includes(q) || p.city?.toLowerCase().includes(q) || p.propertyAddress?.toLowerCase().includes(q);
     const matchType = typeFilter === "All" || p.propertyType === typeFilter;
@@ -293,7 +297,7 @@ export default function FindProperties() {
   const isFull = viewProp && viewProp.tenants?.length >= viewProp.capacity;
 
   return (
-    <Layout pageTitle="Browse Properties">
+    <Layout pageTitle={myRentalsMode ? "My Rentals" : "Browse Properties"}>
       <div className="p-6 lg:p-8 max-w-7xl mx-auto">
 
         {/* Hero search bar */}
@@ -302,8 +306,8 @@ export default function FindProperties() {
           <div className="blob w-64 h-64 bg-blue-500/20 -top-10 right-10 animate-blob" />
           <div className="blob w-40 h-40 bg-cyan-500/15 bottom-0 left-20 animate-blob" style={{ animationDelay: "3s" }} />
           <div className="relative z-10">
-            <h1 className="text-3xl font-extrabold text-white mb-2">Find Your Perfect Space</h1>
-            <p className="text-slate-400 mb-6">Discover properties, villas, gyms, and more</p>
+            <h1 className="text-3xl font-extrabold text-white mb-2">{myRentalsMode ? "My Rentals" : "Find Your Perfect Space"}</h1>
+            <p className="text-slate-400 mb-6">{myRentalsMode ? "View and manage properties you are currently renting" : "Discover properties, villas, gyms, and more"}</p>
             <div className="flex gap-3 flex-col sm:flex-row">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-slate-400" />
