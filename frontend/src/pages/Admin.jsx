@@ -49,21 +49,34 @@ function KPICard({ label, value, sub, color, icon: Icon, loading }) {
   );
 }
 
-function UserRow({ user, onView }) {
+function UserRow({ user, onRoleChange }) {
   return (
     <div className="flex items-center gap-4 py-3 border-b border-slate-50 last:border-0">
       <Avatar name={`${user.firstname} ${user.lastname || ""}`} size="sm" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-slate-900 truncate">{user.firstname} {user.lastname}</p>
-        <p className="text-xs text-slate-400 truncate">{user.email}</p>
+      <div className="flex-1 min-w-0 flex items-center gap-2">
+        <div>
+          <p className="text-sm font-semibold text-slate-900 truncate">{user.firstname} {user.lastname}</p>
+          <p className="text-xs text-slate-400 truncate">{user.email}</p>
+        </div>
+        {user.requestedRole && (
+          <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">
+            Requested: {user.requestedRole}
+          </span>
+        )}
       </div>
-      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${ROLE_COLORS[user.role] || "bg-slate-100 text-slate-600"}`}>
-        {user.role}
-      </span>
-      <span className="text-[10px] text-slate-400">{new Date(user.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" })}</span>
-      <button onClick={() => onView(user)} className="size-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer border-none transition-colors">
-        <Eye className="size-3.5 text-slate-500" />
-      </button>
+      
+      <select 
+        value={user.role} 
+        onChange={(e) => onRoleChange(user._id, e.target.value)}
+        className={`px-2 py-1 rounded-lg text-xs font-bold capitalize cursor-pointer outline-none border-none ${ROLE_COLORS[user.role] || "bg-slate-100 text-slate-600"}`}
+      >
+        <option value="tenant">Tenant</option>
+        <option value="landlord">Landlord</option>
+        <option value="admin">Admin</option>
+        <option value="maintenance_staff">Staff</option>
+      </select>
+
+      <span className="text-[10px] text-slate-400 w-20 text-right">{new Date(user.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" })}</span>
     </div>
   );
 }
@@ -89,21 +102,33 @@ export default function AdminPanel() {
   const [maintenance, setMaintenance] = useState([]);
   const [kpi, setKpi] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // User Management State
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [viewUser, setViewUser] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [fetchingUsers, setFetchingUsers] = useState(false);
+
+  // Maintenance State
+  const [properties, setProperties] = useState([]);
+  const [propertyFilter, setPropertyFilter] = useState("all");
+
   const [tab, setTab] = useState("overview");
 
-  const fetchData = async () => {
+  const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const [dashRes, maintRes, kpiRes] = await Promise.all([
+      const [dashRes, maintRes, kpiRes, propRes] = await Promise.all([
         api.get("/dashboard"),
         api.get("/maintenance"),
         api.get("/maintenance/kpi"),
+        api.get("/properties") // Admin can fetch all properties to filter
       ]);
       setMaintenance(maintRes.data.requests || maintRes.data || []);
       setKpi(kpiRes.data.data);
+      setProperties(propRes.data.data || []);
     } catch (err) {
       console.error("Admin fetch error:", err);
     } finally {
@@ -111,16 +136,47 @@ export default function AdminPanel() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  const fetchUsersData = async () => {
+    setFetchingUsers(true);
+    try {
+      let url = `/users?page=${page}&limit=10`;
+      if (search) url += `&search=${search}`;
+      if (roleFilter !== "all") url += `&role=${roleFilter}`;
+      
+      const res = await api.get(url);
+      setUsers(res.data.data || []);
+      setTotalPages(res.data.pagination?.pages || 1);
+      setTotalUsers(res.data.pagination?.total || 0);
+    } catch (err) {
+      console.error("User fetch error:", err);
+    } finally {
+      setFetchingUsers(false);
+    }
+  };
 
-  const filteredUsers = users.filter(u => {
-    const matchSearch = `${u.firstname} ${u.lastname} ${u.email}`.toLowerCase().includes(search.toLowerCase());
-    const matchRole = roleFilter === "all" || u.role === roleFilter;
-    return matchSearch && matchRole;
-  });
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  useEffect(() => {
+    if (tab === "users") {
+      fetchUsersData();
+    }
+  }, [page, search, roleFilter, tab]);
+
+  const handleRoleChange = async (userId, newRole) => {
+    if (!window.confirm(`Change this user's role to ${newRole}?`)) return;
+    try {
+      await api.put(`/users/${userId}/role`, { role: newRole });
+      fetchUsersData();
+    } catch (err) {
+      alert("Failed to update role");
+    }
+  };
 
   const TABS = [
     { key: "overview", label: "Overview" },
+    { key: "users", label: "User Management" },
     { key: "maintenance", label: "Maintenance" },
   ];
 
@@ -139,7 +195,7 @@ export default function AdminPanel() {
             </div>
             <p className="text-slate-500 text-sm">Platform-wide monitoring and management</p>
           </div>
-          <GradientButton onClick={fetchData} icon={<TrendingUp className="size-4" />} size="sm">
+          <GradientButton onClick={() => { fetchDashboardData(); if (tab === 'users') fetchUsersData(); }} icon={<TrendingUp className="size-4" />} size="sm">
             Refresh
           </GradientButton>
         </div>
@@ -216,12 +272,96 @@ export default function AdminPanel() {
           </>
         )}
 
+        {tab === "users" && (
+          <GlassCard className="p-5">
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between mb-6">
+              <SectionHeader
+                title="User Management"
+                subtitle={`Managing ${totalUsers} platform users`}
+                noMargin
+              />
+              <div className="flex gap-2">
+                <div className="relative">
+                  <Search className="size-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search name or email..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="form-input w-60 py-1.5 text-sm"
+                    style={{ paddingLeft: "2.5rem" }}
+                  />
+                </div>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="form-input py-1.5 text-sm bg-white"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="tenant">Tenant</option>
+                  <option value="landlord">Landlord</option>
+                  <option value="maintenance_staff">Staff</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+
+            {fetchingUsers ? (
+              <div className="flex flex-col gap-2">{[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" />)}</div>
+            ) : users.length === 0 ? (
+              <EmptyState icon={<Users className="size-6" />} title="No users found" description="No users match your criteria" />
+            ) : (
+              <div className="flex flex-col">
+                {users.map(user => (
+                  <UserRow key={user._id} user={user} onRoleChange={handleRoleChange} />
+                ))}
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-500">Page {page} of {totalPages}</p>
+                <div className="flex gap-2">
+                  <button 
+                    disabled={page === 1} 
+                    onClick={() => setPage(p => p - 1)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 disabled:opacity-50 border-none transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button 
+                    disabled={page === totalPages} 
+                    onClick={() => setPage(p => p + 1)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 disabled:opacity-50 border-none transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </GlassCard>
+        )}
+
         {tab === "maintenance" && (
           <GlassCard className="p-5">
-            <SectionHeader
-              title="All Maintenance Requests"
-              subtitle={`${maintenance.length} total requests`}
-            />
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between mb-6">
+              <SectionHeader
+                title="Maintenance Requests"
+                subtitle={`${maintenance.length} total requests on platform`}
+                noMargin
+              />
+              <select
+                value={propertyFilter}
+                onChange={(e) => setPropertyFilter(e.target.value)}
+                className="form-input py-1.5 text-sm bg-white min-w-48 max-w-xs"
+              >
+                <option value="all">All Properties</option>
+                {properties.map(p => (
+                  <option key={p._id} value={p._id}>{p.propertyName}</option>
+                ))}
+              </select>
+            </div>
 
             {/* Status breakdown */}
             <div className="grid grid-cols-4 gap-3 mb-6">
@@ -244,9 +384,12 @@ export default function AdminPanel() {
               <EmptyState icon={<Wrench className="size-6" />} title="No requests" description="No maintenance requests found" />
             ) : (
               <div className="flex flex-col">
-                {maintenance.map(req => (
-                  <MaintenanceRow key={req._id} req={req} />
-                ))}
+                {(() => {
+                  const filteredMaintenance = propertyFilter === "all" ? maintenance : maintenance.filter(req => req.property?._id === propertyFilter || req.property === propertyFilter);
+                  return filteredMaintenance.map(req => (
+                    <MaintenanceRow key={req._id} req={req} />
+                  ));
+                })()}
               </div>
             )}
           </GlassCard>

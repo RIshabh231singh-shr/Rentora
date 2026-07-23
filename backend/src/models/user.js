@@ -45,6 +45,11 @@ const UserSchema = new Schema(
       enum: ["tenant", "landlord", "admin","maintenance_staff"],
       default: "tenant",
     },
+    requestedRole: {
+      type: String,
+      enum: ["tenant", "landlord", "admin", "maintenance_staff", null],
+      default: null,
+    },
     phoneNumber: {
       type: String,
       trim: true,

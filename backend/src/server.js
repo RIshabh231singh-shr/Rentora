@@ -12,6 +12,7 @@ const bookingRoutes = require("./routes/bookings");
 const maintenanceRoutes = require("./routes/maintenance");
 const dashboardRoutes = require("./routes/dashboard");
 const messageRoutes = require("./routes/messages");
+const userRoutes = require("./routes/users");
 const Message = require("./models/message");
 
 const app = express();
@@ -91,6 +92,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/messages", messageRoutes);
+app.use("/api/users", userRoutes);
 
 const initializeConnection = async () => {
     try {

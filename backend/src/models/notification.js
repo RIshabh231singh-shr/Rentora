@@ -22,10 +22,12 @@ const NotificationSchema = new Schema(
         "BOOKING_CONFIRMED",
         "BOOKING_REJECTED",
         "BOOKING_CANCELLED",
+        "CANCELLATION_REQUESTED",
         "BOOKING_REMINDER",
         "MAINTENANCE_CREATED",
         "MAINTENANCE_STATUS_CHANGED",
         "MAINTENANCE_RESOLVED",
+        "ROLE_CHANGE_REQUEST",
       ],
     },
     title: {

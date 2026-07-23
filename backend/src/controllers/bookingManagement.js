@@ -55,6 +55,24 @@ const bookAmenity = async (req, res) => {
             return res.status(400).json({ success: false, message: "This amenity is currently unavailable" });
         }
 
+        // ── TENANT VALIDATION ───────────────────────────────────────
+        // Only tenants of the property can book its amenities
+        const property = await Property.findById(amenity.property).lean();
+        if (!property) {
+            return res.status(404).json({ success: false, message: "Associated property not found" });
+        }
+        
+        const isTenant = property.tenants?.some(t => t.toString() === req.user.id.toString());
+        const isOwner = property.owner?.toString() === req.user.id.toString();
+        const isAdmin = req.user.role === "admin";
+        
+        if (!isTenant && !isOwner && !isAdmin) {
+            return res.status(403).json({ 
+                success: false, 
+                message: "Only approved tenants of this property can book its amenities" 
+            });
+        }
+
         // ── OPERATING HOURS CHECK ───────────────────────────────────
         // Prefer new integer hour fields; fall back to legacy Date fields
         let openMins, closeMins;
@@ -502,7 +520,7 @@ const cancelBooking = async (req, res) => {
 
             Notification.create({
                 recipient: prop.owner,
-                type: "BOOKING_CANCELLED",
+                type: "CANCELLATION_REQUESTED",
                 title: "Cancellation Request",
                 message: `Tenant has requested to cancel their booking for ${booking.amenity?.name || "property"}.`,
                 relatedProperty: booking.property,
@@ -541,6 +559,14 @@ const approveCancellation = async (req, res) => {
 
         booking.status = "cancelled";
         await booking.save();
+
+        // If this is a monthly lease, remove the tenant from the property
+        if (booking.property && booking.property.rentType === "monthly") {
+            const Property = require("../models/property");
+            await Property.findByIdAndUpdate(booking.property._id, {
+                $pull: { tenants: booking.user }
+            });
+        }
 
         Notification.create({
             recipient: booking.user,

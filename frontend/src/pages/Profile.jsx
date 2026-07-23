@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   User, Mail, Phone, Shield, Building2, Calendar, Wrench,
@@ -57,6 +57,7 @@ function CompletionRing({ percentage }) {
 }
 
 export default function Profile() {
+  const fileInputRef = useRef(null);
   const [user, setUser] = useState(null);
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -64,6 +65,29 @@ export default function Profile() {
   const [form, setForm] = useState({ firstname: "", lastname: "", phoneNumber: "" });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [uploadingPic, setUploadingPic] = useState(false);
+
+  const handlePicUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("profilePicture", file);
+    
+    setUploadingPic(true);
+    try {
+      const res = await api.post("/users/profile-picture", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      setUser(res.data.data);
+      localStorage.setItem("user", JSON.stringify(res.data.data));
+      alert("Profile picture updated!");
+    } catch (err) {
+      alert("Failed to upload profile picture");
+    } finally {
+      setUploadingPic(false);
+    }
+  };
 
   useEffect(() => {
     const s = localStorage.getItem("user");
@@ -96,10 +120,15 @@ export default function Profile() {
             {/* Avatar */}
             <div className="relative">
               <div className="size-24 rounded-2xl overflow-hidden ring-4 ring-white/20">
-                <Avatar name={`${user?.firstname} ${user?.lastname}`} size="xl" />
+                <Avatar name={`${user?.firstname} ${user?.lastname}`} size="xl" src={user?.profilePicture} />
               </div>
-              <button className="absolute -bottom-1 -right-1 size-8 rounded-xl bg-blue-600 flex items-center justify-center cursor-pointer border-none shadow-lg">
-                <Camera className="size-3.5 text-white" />
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePicUpload} className="hidden" />
+              <button 
+                onClick={() => fileInputRef.current?.click()} 
+                disabled={uploadingPic} 
+                className="absolute -bottom-1 -right-1 size-8 rounded-xl bg-blue-600 flex items-center justify-center cursor-pointer border-none shadow-lg disabled:opacity-50"
+              >
+                {uploadingPic ? <div className="size-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="size-3.5 text-white" />}
               </button>
             </div>
 

@@ -73,7 +73,7 @@ function BookingCard({ booking, onCancel, onView }) {
         </div>
 
         {/* Cancel */}
-        {(isUpcoming || isActive) && booking.status !== "cancelled" && (
+        {(isUpcoming || isActive) && booking.status !== "cancelled" && booking.status !== "cancellation_requested" && (
           <button
             onClick={e => { e.stopPropagation(); onCancel?.(booking._id); }}
             className="size-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-400 cursor-pointer border-none transition-colors shrink-0"

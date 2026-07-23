@@ -1,4 +1,4 @@
-const MaintenanceRequest = require("../models/maintenanceRequest");
+const MaintenanceRequest = require("../models/maintainanceRequest");
 const Property = require("../models/property");
 const Booking = require("../models/booking");
 const Notification = require("../models/notification");
@@ -341,10 +341,45 @@ const getMaintenanceKPIs = async (req, res) => {
     }
 };
 
+// POST /api/maintenance/:id/review
+const submitReview = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rating, feedback } = req.body;
+
+        if (!rating || rating < 1 || rating > 5) {
+            return res.status(400).json({ success: false, message: "Valid rating between 1 and 5 is required." });
+        }
+
+        const request = await MaintenanceRequest.findById(id).populate("property");
+        if (!request) return res.status(404).json({ success: false, message: "Request not found" });
+
+        // Only the tenant who requested it (or the property tenant) can review
+        if (request.tenant.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ success: false, message: "Unauthorized to review this request." });
+        }
+
+        if (request.status !== "resolved") {
+            return res.status(400).json({ success: false, message: "Can only review resolved requests." });
+        }
+
+        request.rating = rating;
+        if (feedback) request.feedback = feedback.trim();
+
+        await request.save();
+
+        return res.status(200).json({ success: true, message: "Review submitted successfully.", data: request });
+    } catch (err) {
+        console.error("submitReview error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
 module.exports = {
     createRequest,
     getRequests,
     updateRequestStatus,
     assignStaff,
-    getMaintenanceKPIs
+    getMaintenanceKPIs,
+    submitReview
 };

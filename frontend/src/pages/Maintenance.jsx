@@ -209,14 +209,20 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
   const [selectedStaff, setSelectedStaff] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [assignMsg, setAssignMsg] = useState("");
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewMsg, setReviewMsg] = useState("");
+
   const isLandlord = user?.role === "landlord" || user?.role === "admin";
+  const isTenant = user?.role === "tenant";
 
   useEffect(() => {
     if (!open || !isLandlord) return;
-    // Fetch users that can be assigned as staff (maintenance_staff or tenant)
-    api.get("/properties").then(r => {
-      // We don't have a direct users endpoint, so we'll show a manual ID field
-      // If you have a users list endpoint for admins, use that here
+    api.get("/users?role=maintenance_staff").then(res => {
+      if (res.data.success) {
+        setStaffList(res.data.data);
+      }
     }).catch(() => {});
   }, [open, isLandlord]);
 
@@ -232,6 +238,21 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
       setAssignMsg(err.response?.data?.message || "Assignment failed.");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (reviewRating < 1) return;
+    setSubmittingReview(true);
+    setReviewMsg("");
+    try {
+      await api.post(`/maintenance/${req._id}/review`, { rating: reviewRating, feedback: reviewFeedback });
+      setReviewMsg("Review submitted! Thank you.");
+      if (onStatusChange) onStatusChange(req._id, "resolved"); // trigger a refresh
+    } catch (err) {
+      setReviewMsg("Failed to submit review.");
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -309,12 +330,18 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
               <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Assign Staff Member</p>
               <div className="flex gap-2">
-                <input
-                  className="form-input flex-1 text-sm"
-                  placeholder="Paste staff user ID here"
+                <select
+                  className="form-input flex-1 text-sm bg-white"
                   value={selectedStaff}
                   onChange={e => setSelectedStaff(e.target.value)}
-                />
+                >
+                  <option value="">Select a staff member...</option>
+                  {staffList.map(staff => (
+                    <option key={staff._id} value={staff._id}>
+                      {staff.firstname} {staff.lastname} ({staff.email})
+                    </option>
+                  ))}
+                </select>
                 <GradientButton size="sm" onClick={handleAssign} loading={assigning}>
                   Assign
                 </GradientButton>
@@ -325,6 +352,57 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
                 </p>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Review UI */}
+        {req.status === "resolved" && (
+          <div className="pt-4 border-t border-slate-100">
+            {req.rating ? (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-100 flex flex-col items-center text-center">
+                <p className="text-sm font-bold text-slate-900 mb-1">Your Rating</p>
+                <div className="flex gap-1 mb-2">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <span key={star} className={`text-xl ${star <= req.rating ? "text-amber-400" : "text-slate-300"}`}>★</span>
+                  ))}
+                </div>
+                {req.feedback && <p className="text-xs text-slate-600 italic">"{req.feedback}"</p>}
+              </div>
+            ) : isTenant ? (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-sm font-bold text-slate-800 mb-2">Rate this maintenance service</p>
+                <div className="flex gap-2 mb-3">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button
+                      key={star}
+                      onClick={() => setReviewRating(star)}
+                      className={`text-2xl hover:scale-110 transition-transform ${star <= reviewRating ? "text-amber-400" : "text-slate-300"} cursor-pointer border-none bg-transparent`}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+                {reviewRating > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <textarea
+                      className="form-input text-sm"
+                      placeholder="Leave some feedback (optional)..."
+                      value={reviewFeedback}
+                      onChange={e => setReviewFeedback(e.target.value)}
+                      rows={2}
+                    />
+                    <GradientButton size="sm" onClick={handleSubmitReview} loading={submittingReview}>
+                      Submit Review
+                    </GradientButton>
+                    {reviewMsg && (
+                      <p className={`text-xs mt-1 font-medium ${reviewMsg.includes("Failed") ? "text-red-500" : "text-emerald-600"}`}>
+                        {reviewMsg}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
         )}
       </div>

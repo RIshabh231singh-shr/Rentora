@@ -7,7 +7,7 @@ import {
   ChevronRight, Menu, X, Home, Plus, ChevronDown, ShieldCheck,
 } from "lucide-react";
 import api from "../utility/axiosInstance";
-import { Avatar, Toast } from "./ui";
+import { Avatar, Toast, Modal, GradientButton } from "./ui";
 import { io } from "socket.io-client";
 
 /* ===================================================
@@ -71,6 +71,23 @@ function Sidebar({ user, onLogout, notifCount }) {
   const { collapsed, toggle } = useSidebar();
   const location = useLocation();
   const nav = buildNav(user?.role);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [requestedRole, setRequestedRole] = useState("landlord");
+  const [loadingRole, setLoadingRole] = useState(false);
+
+  const handleRequestRole = async () => {
+    setLoadingRole(true);
+    try {
+      await api.post("/users/request-role", { requestedRole });
+      alert("Role change requested successfully!");
+      setRoleModalOpen(false);
+      window.location.reload(); // Refresh to get updated user
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to request role");
+    } finally {
+      setLoadingRole(false);
+    }
+  };
 
   return (
     <motion.aside
@@ -133,16 +150,28 @@ function Sidebar({ user, onLogout, notifCount }) {
       <div className="p-2 border-t border-white/5 shrink-0">
         {!collapsed && (
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1">
-            <Avatar name={`${user?.firstname} ${user?.lastname}`} size="sm" />
+            <Avatar name={`${user?.firstname} ${user?.lastname}`} size="sm" src={user?.profilePicture} />
             <div className="flex-1 min-w-0">
               <p className="text-white text-xs font-semibold truncate">{user?.firstname} {user?.lastname}</p>
               <p className="text-slate-400 text-[11px] capitalize">{user?.role}</p>
             </div>
           </div>
         )}
+
+        {user?.role !== "admin" && (
+          <button
+            onClick={() => setRoleModalOpen(true)}
+            className={`nav-item w-full text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 ${collapsed ? "justify-center px-0" : ""}`}
+          >
+            <ShieldCheck className="size-4 shrink-0" />
+            {!collapsed && <span>{user?.requestedRole ? "Role Requested" : "Request Role"}</span>}
+            {collapsed && <span className="sidebar-tooltip">{user?.requestedRole ? "Role Requested" : "Request Role"}</span>}
+          </button>
+        )}
+
         <button
           onClick={onLogout}
-          className={`nav-item w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 ${collapsed ? "justify-center px-0" : ""}`}
+          className={`nav-item w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 mt-1 ${collapsed ? "justify-center px-0" : ""}`}
         >
           <LogOut className="size-4 shrink-0" />
           {!collapsed && <span>Sign Out</span>}
@@ -156,6 +185,37 @@ function Sidebar({ user, onLogout, notifCount }) {
           {collapsed && <span className="sidebar-tooltip">Expand</span>}
         </button>
       </div>
+
+      <Modal open={roleModalOpen} onClose={() => setRoleModalOpen(false)} title="Request Role Change" width="max-w-md">
+        <div className="flex flex-col gap-4">
+          {user?.requestedRole ? (
+            <div className="p-4 bg-blue-50 text-blue-700 rounded-xl text-sm border border-blue-100">
+              You already have a pending request for: <strong>{user.requestedRole}</strong>.
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600">
+                Select the role you would like to request. An admin will review and approve your request.
+              </p>
+              <select
+                value={requestedRole}
+                onChange={e => setRequestedRole(e.target.value)}
+                className="form-input text-slate-800 bg-white"
+              >
+                {user?.role !== "landlord" && <option value="landlord">Landlord</option>}
+                {user?.role !== "maintenance_staff" && <option value="maintenance_staff">Maintenance Staff</option>}
+                {user?.role !== "admin" && <option value="admin">Admin</option>}
+              </select>
+              <div className="flex gap-3 pt-2 mt-2 border-t border-slate-100">
+                <GradientButton onClick={handleRequestRole} loading={loadingRole} className="w-full">
+                  Submit Request
+                </GradientButton>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
     </motion.aside>
   );
 }
@@ -251,7 +311,7 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
             onClick={() => setProfileOpen(v => !v)}
             className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-slate-100 cursor-pointer border-none bg-transparent transition-colors"
           >
-            <Avatar name={`${user?.firstname} ${user?.lastname}`} size="sm" />
+            <Avatar name={`${user?.firstname} ${user?.lastname}`} size="sm" src={user?.profilePicture} />
             <div className="hidden sm:block text-left">
               <p className="text-xs font-semibold text-slate-900">{user?.firstname}</p>
               <p className="text-[10px] text-slate-500 capitalize">{user?.role}</p>

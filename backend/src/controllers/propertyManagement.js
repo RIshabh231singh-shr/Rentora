@@ -181,6 +181,36 @@ const createProperty = async (req, res) => {
             $addToSet: { myProperties: property._id }
         });
 
+        // ── DYNAMIC AMENITY CREATION ─────────────────────────────────
+        let createdAmenities = [];
+        if (req.body.amenityObjects) {
+            try {
+                let amList = typeof req.body.amenityObjects === "string" 
+                    ? JSON.parse(req.body.amenityObjects) 
+                    : req.body.amenityObjects;
+                    
+                if (Array.isArray(amList) && amList.length > 0) {
+                    const Amenity = require("../models/amenity");
+                    const amPromises = amList.map(am => {
+                        return Amenity.create({
+                            name: am.name,
+                            description: am.description || "",
+                            property: property._id,
+                            capacity: Number(am.capacity) || 1,
+                            category: am.category || "general",
+                            pricePerHour: Number(am.pricePerHour) || 0,
+                            openingHour: Number(am.openingHour) || property.openingHour,
+                            closingHour: Number(am.closingHour) || property.closingHour,
+                            isActive: true
+                        });
+                    });
+                    createdAmenities = await Promise.all(amPromises);
+                }
+            } catch (err) {
+                console.error("Failed to dynamically create amenities:", err);
+            }
+        }
+
         await clearPropertiesCache();
 
         return res.status(201).json({

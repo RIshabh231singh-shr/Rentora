@@ -67,6 +67,7 @@ function PropertyFormModal({ open, onClose, onSaved, editingProperty }) {
     securityDeposit: 0, rentType: "monthly", openingHour: 8, closingHour: 22,
     amenities: "",
   });
+  const [amenityObjects, setAmenityObjects] = useState([]);
   const [images, setImages] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -126,10 +127,15 @@ function PropertyFormModal({ open, onClose, onSaved, editingProperty }) {
             if (k === "amenities") fda.append(k, JSON.stringify(v.split(",").map(s => s.trim()).filter(Boolean)));
             else fda.append(k, v);
           });
+          if (amenityObjects.length > 0) fda.append("amenityObjects", JSON.stringify(amenityObjects));
           images.forEach(img => fda.append("images", img));
           await api.post("/properties", fda, { headers: { "Content-Type": "multipart/form-data" } });
         } else {
-          await api.post("/properties", { ...form, amenities: form.amenities.split(",").map(s => s.trim()).filter(Boolean) }, { headers: { "Content-Type": "application/json" } });
+          await api.post("/properties", { 
+            ...form, 
+            amenities: form.amenities.split(",").map(s => s.trim()).filter(Boolean),
+            amenityObjects 
+          }, { headers: { "Content-Type": "application/json" } });
         }
       }
       onSaved?.();
@@ -232,10 +238,64 @@ function PropertyFormModal({ open, onClose, onSaved, editingProperty }) {
               </div>
             </>
           )}
-          <div className="col-span-2">
-            <label className="form-label">Amenities (comma-separated)</label>
-            <input className="form-input" value={form.amenities} onChange={e => set("amenities", e.target.value)} placeholder="e.g. WiFi, Parking, Gym" />
-          </div>
+          {!isEdit && (
+            <div className="col-span-2 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <label className="form-label mb-0">Bookable Amenities (Optional)</label>
+                <button
+                  type="button"
+                  onClick={() => setAmenityObjects(prev => [...prev, { name: "", category: "general", capacity: 1, pricePerHour: 0 }])}
+                  className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  + Add Amenity
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">Add real facilities (like Gym, Pool) that tenants can book separately.</p>
+              
+              {amenityObjects.map((am, i) => (
+                <div key={i} className="p-3 mb-3 bg-slate-50 border border-slate-200 rounded-xl relative">
+                  <button 
+                    type="button"
+                    onClick={() => setAmenityObjects(prev => prev.filter((_, idx) => idx !== i))}
+                    className="absolute top-2 right-2 size-6 flex items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200"
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 uppercase">Name *</label>
+                      <input className="form-input text-xs py-1.5" required value={am.name} onChange={e => {
+                        const newAm = [...amenityObjects]; newAm[i].name = e.target.value; setAmenityObjects(newAm);
+                      }} placeholder="e.g. Swimming Pool" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 uppercase">Category</label>
+                      <select className="form-input text-xs py-1.5 bg-white" value={am.category} onChange={e => {
+                        const newAm = [...amenityObjects]; newAm[i].category = e.target.value; setAmenityObjects(newAm);
+                      }}>
+                        <option value="gym">Gym</option>
+                        <option value="swimmingpool">Swimming Pool</option>
+                        <option value="clubhouse">Clubhouse</option>
+                        <option value="general">General</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 uppercase">Capacity *</label>
+                      <input className="form-input text-xs py-1.5" type="number" min={1} required value={am.capacity} onChange={e => {
+                        const newAm = [...amenityObjects]; newAm[i].capacity = e.target.value; setAmenityObjects(newAm);
+                      }} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 uppercase">Price/Hour (₹) *</label>
+                      <input className="form-input text-xs py-1.5" type="number" min={0} required value={am.pricePerHour} onChange={e => {
+                        const newAm = [...amenityObjects]; newAm[i].pricePerHour = e.target.value; setAmenityObjects(newAm);
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {error && <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-200">{error}</div>}

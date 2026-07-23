@@ -80,6 +80,7 @@ export function StatusBadge({ status }) {
     occupied:      { label: "Occupied",     cls: "badge-danger" },
     unread:        { label: "New",          cls: "badge-booked" },
     read:          { label: "Read",         cls: "badge-neutral" },
+    cancellation_requested: { label: "Cancellation Requested", cls: "badge-pending" },
   };
   const { label, cls } = map[status?.toLowerCase?.()] || { label: status, cls: "badge-neutral" };
   return (
