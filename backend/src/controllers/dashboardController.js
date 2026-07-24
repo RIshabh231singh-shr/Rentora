@@ -1,4 +1,4 @@
-const MaintenanceRequest = require("../models/maintenanceRequest");
+const MaintenanceRequest = require("../models/maintainanceRequest");
 const Booking = require("../models/booking");
 const Property = require("../models/property");
 const Notification = require("../models/notification");
@@ -132,6 +132,13 @@ const getDashboardData = async (req, res) => {
             })
                 .populate("pendingTenants", "firstname lastname email")
                 .lean();
+
+            var landlordPropertiesWithTenants = await Property.find({
+                owner: req.user._id,
+                currentTenants: { $exists: true, $not: { $size: 0 } }
+            })
+                .populate("currentTenants", "firstname lastname email phoneNumber")
+                .lean();
         } else if (req.user.role === "admin") {
             // Active requests: pending, assigned, in_progress
             activeRequestsCount = await MaintenanceRequest.countDocuments({
@@ -168,6 +175,7 @@ const getDashboardData = async (req, res) => {
             rentedProperties: typeof rentedProperties !== "undefined" ? rentedProperties : [],
             pendingBookings: typeof pendingBookings !== "undefined" ? pendingBookings : [],
             pendingLeases: typeof pendingLeases !== "undefined" ? pendingLeases : [],
+            landlordPropertiesWithTenants: typeof landlordPropertiesWithTenants !== "undefined" ? landlordPropertiesWithTenants : [],
             notifications: notificationsList || []
         };
 

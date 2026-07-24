@@ -7,27 +7,10 @@ import api from "../utility/axiosInstance";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
-  { key: "account", label: "Account", icon: User },
-  { key: "notifications", label: "Notifications", icon: Bell },
-  { key: "privacy", label: "Privacy & Security", icon: Shield },
-  { key: "appearance", label: "Appearance", icon: Palette },
+  { key: "account", label: "Account", icon: User }
 ];
 
-function Toggle({ enabled, onChange }) {
-  return (
-    <motion.button
-      onClick={() => onChange?.(!enabled)}
-      className={`w-12 h-6 rounded-full cursor-pointer border-none relative flex items-center transition-colors ${enabled ? "bg-blue-600" : "bg-slate-200"}`}
-    >
-      <motion.span
-        layout
-        animate={{ x: enabled ? 24 : 2 }}
-        transition={{ type: "spring", damping: 20, stiffness: 300 }}
-        className="size-5 rounded-full bg-white shadow-sm absolute"
-      />
-    </motion.button>
-  );
-}
+
 
 function SettingRow({ icon: Icon, label, description, action }) {
   return (
@@ -55,17 +38,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
 
-  const [prefs, setPrefs] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("rentora_prefs") || "{}");
-    } catch { return {}; }
-  });
 
-  const setPref = (k, v) => {
-    const updated = { ...prefs, [k]: v };
-    setPrefs(updated);
-    localStorage.setItem("rentora_prefs", JSON.stringify(updated));
-  };
 
   const [profileForm, setProfileForm] = useState({ firstname: "", lastname: "", phoneNumber: "" });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -191,103 +164,7 @@ export default function SettingsPage() {
           />
         </GlassCard>
       </div>
-    ),
-
-    notifications: (
-      <GlassCard className="p-5">
-        <SectionHeader title="Notification Preferences" />
-        <div>
-          {[
-            { key: "notif_booking", label: "Booking Updates", description: "Get notified when bookings change status" },
-            { key: "notif_maintenance", label: "Maintenance Updates", description: "Updates on your maintenance requests" },
-            { key: "notif_tenant", label: "Tenant Requests", description: "When someone requests to join your property" },
-            { key: "notif_messages", label: "New Messages", description: "Alerts when you receive a new message" },
-            { key: "notif_sound", label: "Sound Alerts", description: "Play sound for important notifications" },
-          ].map(({ key, label, description }) => (
-            <SettingRow
-              key={key}
-              label={label}
-              description={description}
-              action={<Toggle enabled={prefs[key] !== false} onChange={v => setPref(key, v)} />}
-            />
-          ))}
-        </div>
-      </GlassCard>
-    ),
-
-    privacy: (
-      <GlassCard className="p-5">
-        <SectionHeader title="Privacy & Security" />
-        <div>
-          {[
-            { key: "priv_2fa", label: "Two-Factor Authentication", description: "Add extra security to your account" },
-            { key: "priv_show_phone", label: "Show Phone to Tenants", description: "Allow tenants to see your phone number" },
-            { key: "priv_show_email", label: "Show Email Publicly", description: "Make your email visible on listings" },
-            { key: "priv_activity", label: "Activity Visibility", description: "Show when you were last active" },
-          ].map(({ key, label, description }) => (
-            <SettingRow
-              key={key}
-              label={label}
-              description={description}
-              action={<Toggle enabled={prefs[key] === true} onChange={v => setPref(key, v)} />}
-            />
-          ))}
-        </div>
-        <div className="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-100">
-          <p className="text-xs text-blue-700 font-semibold">🔒 Your data is encrypted and secure. We never share your personal information with third parties.</p>
-        </div>
-      </GlassCard>
-    ),
-
-    appearance: (
-      <div className="flex flex-col gap-5">
-        <GlassCard className="p-5">
-          <SectionHeader title="Theme" subtitle="Choose your preferred color mode" />
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { key: "light", label: "Light", icon: Sun, bg: "bg-slate-50", border: "border-slate-200" },
-              { key: "dark", label: "Dark", icon: Moon, bg: "bg-slate-900", border: "border-slate-700" },
-              { key: "system", label: "System", icon: Monitor, bg: "bg-gradient-to-br from-slate-100 to-slate-900", border: "border-slate-400" },
-            ].map(({ key, label, icon: Icon, bg, border }) => (
-              <button
-                key={key}
-                onClick={() => setPref("theme", key)}
-                className={`p-4 rounded-2xl border-2 cursor-pointer flex flex-col items-center gap-2 transition-all ${prefs.theme === key ? "border-blue-600 shadow-md" : border} bg-transparent`}
-              >
-                <div className={`size-12 rounded-xl ${bg} border ${border} flex items-center justify-center`}>
-                  <Icon className="size-5 text-slate-600" />
-                </div>
-                <span className="text-xs font-bold text-slate-700">{label}</span>
-                {prefs.theme === key && <Check className="size-3 text-blue-600" />}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-slate-400 mt-3">Note: Dark mode theming is applied to sidebar and hero sections. Full app dark mode is coming soon.</p>
-        </GlassCard>
-
-        <GlassCard className="p-5">
-          <SectionHeader title="Language & Region" />
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="form-label">Language</label>
-              <select className="form-input">
-                <option>English (India)</option>
-                <option>Hindi</option>
-                <option>Tamil</option>
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Currency</label>
-              <select className="form-input">
-                <option>INR (₹)</option>
-                <option>USD ($)</option>
-                <option>EUR (€)</option>
-              </select>
-            </div>
-          </div>
-        </GlassCard>
-      </div>
-    ),
+    )
   };
 
   return (

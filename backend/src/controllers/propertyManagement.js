@@ -452,6 +452,13 @@ const deleteProperty = async (req, res) => {
             });
         }
 
+        if (property.currentTenants && property.currentTenants.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Cannot delete property while there are active tenants. Please remove all tenants first.",
+            });
+        }
+
         await Property.findByIdAndDelete(propertyId);
 
         await clearPropertiesCache();
