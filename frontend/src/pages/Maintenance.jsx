@@ -107,13 +107,13 @@ function CreateRequestModal({ open, onClose, onCreated }) {
         const props = r.data.data || [];
         setProperties(props);
         if (props.length > 0) setForm(f => ({ ...f, propertyId: props[0]._id }));
-      }).catch(() => {});
+      }).catch(e => console.error(e));
     } else {
       api.get("/dashboard").then(r => {
         const props = r.data.rentedProperties || [];
         setProperties(props);
         if (props.length > 0) setForm(f => ({ ...f, propertyId: props[0]._id }));
-      }).catch(() => {});
+      }).catch(e => console.error(e));
     }
   }, [open, user]);
 
@@ -223,7 +223,7 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
       if (res.data.success) {
         setStaffList(res.data.data);
       }
-    }).catch(() => {});
+    }).catch(e => console.error(e));
   }, [open, isLandlord]);
 
   const handleAssign = async () => {
@@ -490,7 +490,7 @@ export default function Maintenance() {
                 </div>
 
                 {/* Column body */}
-                <div className={`flex-1 border border-t-0 ${col.border} rounded-b-2xl p-3 min-h-[400px] flex flex-col gap-2.5`}
+                <div className={`flex-1 border border-t-0 ${col.border} rounded-b-2xl p-3 min-h-[400px] max-h-[65vh] overflow-y-auto scrollbar-thin flex flex-col gap-2.5`}
                   style={{ background: col.key === "pending" ? "rgba(255, 251, 235, 0.4)" : col.key === "in_progress" ? "rgba(239, 246, 255, 0.4)" : "rgba(236, 253, 245, 0.4)" }}>
                   {loading ? (
                     [1,2,3].map(i => <Skeleton key={i} className="h-28" />)

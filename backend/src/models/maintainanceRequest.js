@@ -29,8 +29,7 @@ const MaintenanceRequestSchema = new Schema({
     },
     category : {
         type : String,
-        required : true,
-        enum : ["plumbing","electrical","cleaning","others"]
+        required : true
     },
     status : {
         type : String,

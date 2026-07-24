@@ -151,10 +151,10 @@ const updateRequestStatus = async (req, res) => {
     try {
         const mongoose = require("mongoose");
         const { requestId } = req.params;
-        const { status, resolutionNotes } = req.body;
+        const { status, resolutionNotes, assignedStaff } = req.body;
 
         const validStatuses = ["assigned", "in_progress", "resolved", "cancelled"];
-        if (!status || !validStatuses.includes(status)) {
+        if (status && !validStatuses.includes(status)) {
             return res.status(400).json({ message: `Status must be one of: ${validStatuses.join(", ")}` });
         }
 
@@ -177,8 +177,13 @@ const updateRequestStatus = async (req, res) => {
             return res.status(403).json({ message: "You are not authorized to update this request" });
         }
 
-        request.status = status;
+        if (status) request.status = status;
         if (resolutionNotes) request.resolutionNotes = resolutionNotes;
+        if (assignedStaff) {
+            request.assignedStaff = assignedStaff;
+            if (request.status === "pending") request.status = "assigned";
+        }
+        
         if (status === "resolved") {
             request.resolvedAt = new Date();
             request.resolvedBy = req.user._id;
