@@ -392,33 +392,7 @@ export default function Register() {
                 text="signup_with"
               />
 
-              {/* Role Selection */}
-              <div className="flex flex-col gap-2 mt-2">
-                <span className="font-medium text-[#71717b] text-xs leading-4">
-                  Select your role
-                </span>
-                <div className="flex items-center gap-2">
-                  {roles.map((r) => {
-                    const Icon = r.icon;
-                    const active = selectedRole === r.id;
-                    return (
-                      <button
-                        key={r.id}
-                        type="button"
-                        onClick={() => setValue("role", r.id)}
-                        className={`font-medium rounded-full text-xs leading-4 flex py-2.5 justify-center items-center flex-1 gap-1.5 transition-all cursor-pointer border border-solid ${
-                          active
-                            ? "bg-[#2b7fff] text-blue-50 border-[#2b7fff] font-semibold"
-                            : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-50"
-                        }`}
-                      >
-                        <Icon className="size-3.5" />
-                        {r.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+
             </form>
 
             {/* Footer switcher text */}

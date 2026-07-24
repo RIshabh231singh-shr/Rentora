@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Phone, Loader2 } from "lucide-react";
 import api from "../utility/axiosInstance";
 
@@ -57,15 +57,17 @@ export default function GoogleAuth({ onSuccess, onError, text = "signin_with" })
     }
   };
 
+  const googleBtnRef = useRef(null);
+
   useEffect(() => {
     const initializeGoogleSignIn = () => {
-      if (window.google) {
+      if (window.google && googleBtnRef.current) {
         window.google.accounts.id.initialize({
           client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
           callback: handleGoogleResponse,
         });
         window.google.accounts.id.renderButton(
-          document.getElementById("google-signin-btn"),
+          googleBtnRef.current,
           { 
             theme: "outline", 
             size: "large", 
@@ -78,7 +80,7 @@ export default function GoogleAuth({ onSuccess, onError, text = "signin_with" })
     };
 
     const checkGoogleInterval = setInterval(() => {
-      if (window.google) {
+      if (window.google && googleBtnRef.current) {
         initializeGoogleSignIn();
         clearInterval(checkGoogleInterval);
       }
@@ -90,7 +92,7 @@ export default function GoogleAuth({ onSuccess, onError, text = "signin_with" })
   return (
     <>
       {/* Google Button Container */}
-      <div id="google-signin-btn" className="w-full flex justify-center mt-1 min-h-[44px]"></div>
+      <div ref={googleBtnRef} className="w-full flex justify-center mt-1 min-h-[44px]"></div>
 
       {/* Google Completing Registration Modal */}
       {isNewUserModalOpen && (
@@ -131,34 +133,7 @@ export default function GoogleAuth({ onSuccess, onError, text = "signin_with" })
                 </div>
               </div>
 
-              {/* Role Selection */}
-              <div className="flex flex-col gap-2">
-                <span className="font-medium text-[#71717b] text-xs leading-4">
-                  Select your role *
-                </span>
-                <div className="flex items-center gap-2">
-                  {[
-                    { id: "tenant", label: "Tenant" },
-                    { id: "landlord", label: "Property Owner" }
-                  ].map((r) => {
-                    const active = modalRole === r.id;
-                    return (
-                      <button
-                        key={r.id}
-                        type="button"
-                        onClick={() => setModalRole(r.id)}
-                        className={`font-semibold rounded-full text-xs leading-4 flex py-2.5 justify-center items-center flex-1 transition-all cursor-pointer border border-solid ${
-                          active
-                            ? "bg-[#2b7fff] text-blue-50 border-[#2b7fff]"
-                            : "bg-white text-zinc-950 border-zinc-200 hover:bg-zinc-50"
-                        }`}
-                      >
-                        {r.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+
 
               {/* Submit Button */}
               <div className="flex gap-3 mt-2">
