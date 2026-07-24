@@ -665,5 +665,5 @@ Built with ❤️ using the MERN stack + Redis + Socket.IO
 ---
 
 <div align="center">
-  <sub>Rentora — Trusted by landlords and tenants across India 🇮🇳</sub>
+  <sub>Rentora — Trusted by landlords and tenants     </sub>
 </div>
