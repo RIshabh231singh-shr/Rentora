@@ -1,8 +1,8 @@
-const mongoose =  require("mongoose");
+const mongoose = require("mongoose");
+const env = require("./env");
 
-
-async function main(){
-    mongoose.connect(process.env.DB_CONNECT_STRING);
+async function main() {
+    await mongoose.connect(env.dbConnectionString);
 }
 
-module.exports = main;
+module.exports = main;
