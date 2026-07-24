@@ -31,8 +31,11 @@ const buildNav = (role) => [
     items: [
       { label: "Browse", icon: Search, to: "/explore" },
       ...(role === "landlord" || role === "admin"
-        ? [{ label: "My Properties", icon: Building2, to: "/properties" }]
-        : [{ label: "My Rentals", icon: Home, to: "/my-rentals" }]
+        ? [
+            { label: "My Properties", icon: Building2, to: "/properties" },
+            { label: "My Rentals", icon: Home, to: "/my-rentals" }
+          ]
+        : []
       ),
     ],
   },
@@ -280,22 +283,43 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
                     View all
                   </button>
                 </div>
-                <div className="max-h-72 overflow-y-auto">
+                <div className="max-h-96 overflow-y-auto custom-scrollbar">
                   {notifications.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-8">No notifications yet</p>
                   ) : (
-                    notifications.slice(0, 5).map(n => (
+                    notifications.map(n => (
                       <div
                         key={n._id}
-                        onClick={() => {
-                          setNotifOpen(false);
-                          navigate("/notifications");
-                        }}
-                        className={`px-4 py-3 border-b border-slate-50 last:border-0 cursor-pointer transition-colors ${n.status === "unread" ? "bg-blue-50/40 hover:bg-blue-50/80" : "hover:bg-slate-50"}`}
+                        className={`px-4 py-3 border-b border-slate-50 last:border-0 transition-colors ${n.status === "unread" ? "bg-blue-50/40 hover:bg-blue-50/80" : "hover:bg-slate-50"}`}
                       >
-                        <p className="text-sm font-semibold text-slate-900">{n.title}</p>
-                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{n.message}</p>
-                        <p className="text-[10px] text-slate-400 mt-1">{new Date(n.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                        <div 
+                          className="cursor-pointer"
+                          onClick={() => {
+                            setNotifOpen(false);
+                            navigate("/notifications");
+                          }}
+                        >
+                          <p className="text-sm font-semibold text-slate-900">{n.title}</p>
+                          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{n.message}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{new Date(n.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                        </div>
+                        
+                        {n.type === "ROLE_CHANGE_REQUEST" && user?.role === "admin" && !n.message.includes("approved") && !n.message.includes("rejected") && (
+                          <div className="flex gap-2 mt-2">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); onRoleAction(n.relatedUser, "approve"); }}
+                              className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 transition-colors border-none cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); onRoleAction(n.relatedUser, "reject"); }}
+                              className="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors border-none cursor-pointer"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
@@ -382,6 +406,19 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
 
   const toggle = () => setCollapsed(v => !v);
 
+  const handleRoleAction = async (userId, action) => {
+    try {
+      await api.post(`/users/role-request/${userId}/${action}`);
+      setNotifications(prev => prev.map(n => 
+        n.relatedUser === userId && n.type === "ROLE_CHANGE_REQUEST" 
+          ? { ...n, status: "read", message: `Role change to ${action}d.` } 
+          : n
+      ));
+    } catch (err) {
+      alert(err.response?.data?.message || `Failed to ${action} role`);
+    }
+  };
+
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (stored) setUser(JSON.parse(stored));
@@ -408,6 +445,7 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
         status: "unread",
         createdAt: new Date().toISOString(),
         type: data.type,
+        relatedUser: data.relatedUser
       };
       setNotifications(prev => {
         // Prevent duplicate socket emits (common in React StrictMode dev)
@@ -435,8 +473,12 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
   };
 
   const handleMarkRead = async () => {
-    setNotifications(prev => prev.map(n => ({ ...n, status: "read" })));
-    try { await api.put("/dashboard/notifications/mark-read"); } catch {}
+    try {
+      await api.put("/notifications/mark-read");
+      setNotifications(prev => prev.map(n => ({ ...n, status: "read" })));
+    } catch (err) {
+      console.error("Failed to mark notifications read");
+    }
   };
 
   const dismissToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
@@ -460,6 +502,7 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
           onMarkRead={handleMarkRead}
           toasts={toasts}
           onDismissToast={dismissToast}
+          onRoleAction={handleRoleAction}
         />
         <motion.main
           className="main-content"

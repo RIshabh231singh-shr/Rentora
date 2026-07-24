@@ -151,20 +151,28 @@ export default function Dashboard() {
   useEffect(() => { if (user) fetchData(); }, [user]);
 
   const handleApprove = async (bookingId) => {
-    await api.put(`/bookings/${bookingId}/approve`).catch(() => {});
-    fetchData();
+    try {
+      await api.put(`/bookings/${bookingId}/approve`);
+      fetchData();
+    } catch (err) { alert(err.response?.data?.message || "Failed to approve."); }
   };
   const handleReject = async (bookingId) => {
-    await api.put(`/bookings/${bookingId}/reject`).catch(() => {});
-    fetchData();
+    try {
+      await api.put(`/bookings/${bookingId}/reject`);
+      fetchData();
+    } catch (err) { alert(err.response?.data?.message || "Failed to reject."); }
   };
   const handleApproveLease = async (propertyId, tenantId) => {
-    await api.post(`/properties/${propertyId}/tenants/${tenantId}/accept`).catch(() => {});
-    fetchData();
+    try {
+      await api.post(`/properties/${propertyId}/tenants/${tenantId}/accept`);
+      fetchData();
+    } catch (err) { alert(err.response?.data?.message || "Failed to approve lease."); }
   };
   const handleRejectLease = async (propertyId, tenantId) => {
-    await api.post(`/properties/${propertyId}/tenants/${tenantId}/reject`).catch(() => {});
-    fetchData();
+    try {
+      await api.post(`/properties/${propertyId}/tenants/${tenantId}/reject`);
+      fetchData();
+    } catch (err) { alert(err.response?.data?.message || "Failed to reject lease."); }
   };
 
   const stats = data?.stats;
@@ -237,21 +245,9 @@ export default function Dashboard() {
             >
               <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: kpi.completionRate >= 90 ? "#059669" : "#d97706" }}>Completion Rate</p>
               <p className="text-3xl font-extrabold" style={{ color: kpi.completionRate >= 90 ? "#047857" : "#b45309" }}>{kpi.completionRate}%</p>
-              <p className="text-xs mt-1" style={{ color: kpi.completionRate >= 90 ? "#065f46" : "#92400e" }}>Target ≥ 90% · {kpi.resolved}/{kpi.total} resolved</p>
+              <p className="text-xs mt-1" style={{ color: kpi.completionRate >= 90 ? "#065f46" : "#92400e" }}>{kpi.resolved}/{kpi.total} resolved</p>
             </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-              className="rounded-2xl p-5 border"
-              style={{ background: kpi.meetsSLA === false ? "linear-gradient(135deg,#fff1f2,#ffe4e6)" : "linear-gradient(135deg,#eff6ff,#dbeafe)", borderColor: kpi.meetsSLA === false ? "#fecdd3" : "#bfdbfe" }}
-            >
-              <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: kpi.meetsSLA === false ? "#e11d48" : "#2563eb" }}>Avg Resolution Time</p>
-              <p className="text-3xl font-extrabold" style={{ color: kpi.meetsSLA === false ? "#be123c" : "#1d4ed8" }}>
-                {kpi.avgResolutionHours != null ? `${kpi.avgResolutionHours}h` : "N/A"}
-              </p>
-              <p className="text-xs mt-1" style={{ color: kpi.meetsSLA === false ? "#9f1239" : "#1e40af" }}>
-                {kpi.meetsSLA === true ? "✅ Within 48h SLA" : kpi.meetsSLA === false ? "⚠️ Exceeds 48h SLA" : "No resolved data yet"}
-              </p>
-            </motion.div>
+
             <motion.div
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
               className="rounded-2xl p-5 border bg-slate-50 border-slate-200"
@@ -339,6 +335,29 @@ export default function Dashboard() {
                             <div className="flex gap-1.5">
                               <button onClick={() => handleRejectLease(property._id, tenant._id)} className="px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 cursor-pointer transition-colors">Decline</button>
                               <button onClick={() => handleApproveLease(property._id, tenant._id)} className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg border-none cursor-pointer transition-colors">Accept</button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </GlassCard>
+                )}
+                
+                {/* My Tenants (landlord) */}
+                {data?.landlordPropertiesWithTenants?.length > 0 && (
+                  <GlassCard className="p-5">
+                    <SectionHeader title="My Tenants" subtitle="Active tenants in your properties" />
+                    <div className="flex flex-col gap-3">
+                      {data.landlordPropertiesWithTenants.map(property =>
+                        property.currentTenants?.map(tenant => (
+                          <div key={`${property._id}-${tenant._id}`} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100">
+                            <Avatar name={`${tenant.firstname} ${tenant.lastname}`} size="sm" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-slate-900">{tenant.firstname} {tenant.lastname}</p>
+                              <p className="text-xs text-slate-500 truncate">{tenant.email} • {tenant.phoneNumber || "No Phone"}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{property.propertyName}</span>
                             </div>
                           </div>
                         ))
