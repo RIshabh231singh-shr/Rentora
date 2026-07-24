@@ -4,6 +4,7 @@ const User = require("../models/user");
 const Notification = require("../models/notification");
 const cloudinary = require("../config/cloudinary");
 const redisClient = require("../config/redis");
+const env = require("../config/env");
 
 const clearPropertiesCache = async () => {
     try {
@@ -30,7 +31,6 @@ const uploadStream = (fileBuffer) => {
     });
 };
 
-
 // POST /api/properties
 const createProperty = async (req, res) => {
     try {
@@ -56,7 +56,6 @@ const createProperty = async (req, res) => {
             closingHour
         } = req.body;
 
-        // Parse fields sent via FormData multipart
         if (pincode !== undefined && pincode !== "") pincode = Number(pincode);
         if (capacity !== undefined && capacity !== "") capacity = Number(capacity);
         if (pricePerHour !== undefined && pricePerHour !== "") pricePerHour = Number(pricePerHour);
@@ -68,7 +67,6 @@ const createProperty = async (req, res) => {
             try {
                 amenities = JSON.parse(amenities);
             } catch (e) {
-                // Split by comma
                 amenities = amenities.split(",").map(a => a.trim()).filter(Boolean);
             }
         }
@@ -138,9 +136,7 @@ const createProperty = async (req, res) => {
 
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
-            const hasCloudinaryCredentials = process.env.CLOUDINARY_NAME && 
-                                             process.env.CLOUDINARY_KEY && 
-                                             process.env.CLOUDINARY_SECRET;
+            const hasCloudinaryCredentials = env.cloudinary.name && env.cloudinary.key && env.cloudinary.secret;
             if (hasCloudinaryCredentials) {
                 try {
                     const uploadPromises = req.files.map(file => uploadStream(file.buffer));
@@ -176,10 +172,37 @@ const createProperty = async (req, res) => {
             owner:           req.user.id,
         });
 
-        // Add property to owner's myProperties list
         await User.findByIdAndUpdate(req.user.id, {
             $addToSet: { myProperties: property._id }
         });
+
+        if (req.body.amenityObjects) {
+            try {
+                let amList = typeof req.body.amenityObjects === "string" 
+                    ? JSON.parse(req.body.amenityObjects) 
+                    : req.body.amenityObjects;
+                    
+                if (Array.isArray(amList) && amList.length > 0) {
+                    const Amenity = require("../models/amenity");
+                    const amPromises = amList.map(am => {
+                        return Amenity.create({
+                            name: am.name,
+                            description: am.description || "",
+                            property: property._id,
+                            capacity: Number(am.capacity) || 1,
+                            category: am.category || "general",
+                            pricePerHour: Number(am.pricePerHour) || 0,
+                            openingHour: Number(am.openingHour) || property.openingHour,
+                            closingHour: Number(am.closingHour) || property.closingHour,
+                            isActive: true
+                        });
+                    });
+                    await Promise.all(amPromises);
+                }
+            } catch (err) {
+                console.error("Failed to dynamically create amenities:", err);
+            }
+        }
 
         await clearPropertiesCache();
 
@@ -199,8 +222,6 @@ const createProperty = async (req, res) => {
         return res.status(500).json({ success: false, message: "Internal server error" });
     }
 };
-
-
 
 // PATCH /api/properties/:propertyId
 const updateProperty = async (req, res) => {
@@ -243,7 +264,6 @@ const updateProperty = async (req, res) => {
             closingHour
         } = req.body;
 
-        // Parse inputs to handle both JSON payloads and FormData strings
         if (pincode !== undefined) pincode = Number(pincode);
         if (capacity !== undefined) capacity = Number(capacity);
         if (pricePerHour !== undefined) pricePerHour = Number(pricePerHour);
@@ -390,16 +410,12 @@ const updateProperty = async (req, res) => {
     }
 };
 
-
-
 // DELETE /api/properties/:propertyId
 const deleteProperty = async (req, res) => {
     try {
-
         if (!req.user?.id) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
-
 
         const { propertyId } = req.params;
         if (!mongoose.Types.ObjectId.isValid(propertyId)) {
@@ -411,7 +427,6 @@ const deleteProperty = async (req, res) => {
             return res.status(404).json({ success: false, message: "Property not found" });
         }
 
-        
         const isAdmin    = req.user.role === "admin";
         const isOwner    = property.owner.toString() === req.user.id.toString();
 
@@ -419,6 +434,13 @@ const deleteProperty = async (req, res) => {
             return res.status(403).json({
                 success: false,
                 message: "You are not authorized to delete this property",
+            });
+        }
+
+        if (property.currentTenants && property.currentTenants.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Cannot delete property while there are active tenants. Please remove all tenants first.",
             });
         }
 
@@ -437,8 +459,6 @@ const deleteProperty = async (req, res) => {
     }
 };
 
-
-
 // GET /api/properties
 const getAllProperties = async (req, res) => {
     try {
@@ -448,9 +468,12 @@ const getAllProperties = async (req, res) => {
             if (cached) return res.status(200).json(JSON.parse(cached));
         } catch (err) {}
 
-        const { city, propertyType, minPrice, maxPrice, country, state, myProperties } = req.query;
+        const { city, propertyType, minPrice, maxPrice, country, state, myProperties, page, limit } = req.query;
 
-        // ── 1. Build filter ───────────────────────────────────────────
+        const pageNum  = Math.max(1, parseInt(page)  || 1);
+        const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 12));
+        const skip     = (pageNum - 1) * limitNum;
+
         const filter = {};
 
         if (myProperties === "true" && req.user?.id) {
@@ -495,25 +518,37 @@ const getAllProperties = async (req, res) => {
             }
         }
 
-        // ── 2. Query ──────────────────────────────────────────────────
-        const properties = await Property.find(filter)
-            .populate("owner", "firstname lastname email phoneNumber")
-            .lean();
+        const [properties, totalCount] = await Promise.all([
+            Property.find(filter)
+                .populate("owner", "firstname lastname email phoneNumber")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNum)
+                .lean(),
+            Property.countDocuments(filter)
+        ]);
 
-        return res.status(200).json({
+        const response = {
             success: true,
             message: "Properties fetched successfully",
             count: properties.length,
+            totalCount,
+            totalPages: Math.ceil(totalCount / limitNum),
+            currentPage: pageNum,
             data: properties,
-        });
+        };
+
+        try {
+            await redisClient.setEx(cacheKey, 300, JSON.stringify(response));
+        } catch (err) {}
+
+        return res.status(200).json(response);
 
     } catch (err) {
         console.error("getAllProperties error:", err);
         return res.status(500).json({ success: false, message: "Internal server error" });
     }
 };
-
-
 
 // GET /api/properties/:propertyId
 const getPropertyById = async (req, res) => {
@@ -543,10 +578,7 @@ const getPropertyById = async (req, res) => {
     }
 };
 
-
-
 // POST /api/properties/:propertyId/tenants
-// Controller function
 const addTenantToProperty = async (req, res) => {
     try {
         if (!req.user?.id) {
@@ -578,7 +610,6 @@ const addTenantToProperty = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid tenant ID" });
         }
 
-        // Fetch property with lean for better performance
         const property = await Property.findById(propertyId).lean();
         if (!property) {
             return res.status(404).json({ success: false, message: "Property not found" });
@@ -613,9 +644,7 @@ const addTenantToProperty = async (req, res) => {
         const isLandlord = property.owner.toString() === requesterId;
         const isAdmin = requesterRole === "admin";
 
-        // Case 1: Tenant/Landlord self-request
         if (isSelfRequest) {
-            // Block owner from booking their own property
             if (property.owner.toString() === requesterId) {
                 return res.status(400).json({
                     success: false,
@@ -623,7 +652,6 @@ const addTenantToProperty = async (req, res) => {
                 });
             }
 
-            // Check capacity before allowing pending request
             if (property.tenants.length >= property.capacity) {
                 return res.status(400).json({
                     success: false,
@@ -631,15 +659,14 @@ const addTenantToProperty = async (req, res) => {
                 });
             }
 
-            const updatedProperty = await Property.findByIdAndUpdate(
+            await Property.findByIdAndUpdate(
                 propertyId,
                 {
-                    $addToSet: { pendingTenants: tenantId }  // $addToSet prevents duplicates
+                    $addToSet: { pendingTenants: tenantId }
                 },
                 { new: true }
             );
 
-            // Fire notification without awaiting to prevent blocking
             Notification.create({
                 recipient: property.owner,
                 type: "TENANT_REQUEST",
@@ -673,7 +700,6 @@ const addTenantToProperty = async (req, res) => {
             });
         }
 
-        // Case 2: Landlord/Admin direct add
         if (isLandlord || isAdmin) {
             const updated = await Property.findOneAndUpdate(
                 {
@@ -727,7 +753,6 @@ const addTenantToProperty = async (req, res) => {
     }
 };
 
-// New controller function: Accept tenant request
 const acceptTenantRequest = async (req, res) => {
     try {
         if (!req.user?.id) {
@@ -740,7 +765,6 @@ const acceptTenantRequest = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid ID format" });
         }
 
-        // Atomic update - prevents race conditions
         const updated = await Property.findOneAndUpdate(
             {
                 _id: propertyId,
@@ -755,7 +779,6 @@ const acceptTenantRequest = async (req, res) => {
         );
 
         if (!updated) {
-            // Check why it failed for better error message
             const property = await Property.findById(propertyId).select('pendingTenants tenants capacity');
             if (!property) {
                 return res.status(404).json({ success: false, message: "Property not found" });
@@ -782,7 +805,6 @@ const acceptTenantRequest = async (req, res) => {
             });
         }
 
-        // Fire notification asynchronously
         Notification.create({
             recipient: tenantId,
             type: "TENANT_REQUEST_ACCEPTED",
@@ -792,9 +814,6 @@ const acceptTenantRequest = async (req, res) => {
             relatedUser: req.user.id,
             status: "unread"
         }).catch(err => console.error("Acceptance notification failed:", err));
-
-        // Log for audit trail
-        console.log(`Tenant ${tenantId} accepted to property ${propertyId} by ${req.user.id} (${req.user.role})`);
 
         return res.status(200).json({
             success: true,
@@ -814,7 +833,6 @@ const acceptTenantRequest = async (req, res) => {
     }
 };
 
-// New controller function: Reject tenant request
 const rejectTenantRequest = async (req, res) => {
     try {
         if (!req.user?.id) {
@@ -827,7 +845,6 @@ const rejectTenantRequest = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid ID format" });
         }
 
-        // Atomic update - prevents race conditions
         const updated = await Property.findOneAndUpdate(
             {
                 _id: propertyId,
@@ -859,7 +876,6 @@ const rejectTenantRequest = async (req, res) => {
             });
         }
 
-        // Verify authorization
         const isLandlord = updated.owner.toString() === req.user.id.toString();
         const isAdmin = req.user.role === "admin";
 
@@ -870,7 +886,6 @@ const rejectTenantRequest = async (req, res) => {
             });
         }
 
-        // Send notification (fire and forget)
         Notification.create({
             recipient: tenantId,
             type: "TENANT_REQUEST_REJECTED",
@@ -880,9 +895,6 @@ const rejectTenantRequest = async (req, res) => {
             relatedUser: req.user.id,
             status: "unread"
         }).catch(err => console.error("Rejection notification failed:", err));
-
-        // Audit log
-        console.log(`Tenant ${tenantId} rejected from property ${propertyId} by ${req.user.id} (${req.user.role})`);
 
         return res.status(200).json({
             success: true,
@@ -904,7 +916,6 @@ const rejectTenantRequest = async (req, res) => {
     }
 };
 
-// Get pending requests for a landlord
 const getPendingTenantRequests = async (req, res) => {
     try {
         if (!req.user?.id) {
@@ -912,28 +923,24 @@ const getPendingTenantRequests = async (req, res) => {
         }
 
         const page = parseInt(req.query.page) || 1;
-        const limit = Math.min(parseInt(req.query.limit) || 20, 100); // Max 100 per page
+        const limit = Math.min(parseInt(req.query.limit) || 20, 100);
         const skip = (page - 1) * limit;
 
-        // Build query based on user role
         let query = { pendingTenants: { $exists: true, $ne: [] } };
         if (req.user.role !== "admin") {
             query.owner = req.user.id;
         }
 
-        // Get total count for pagination
         const totalProperties = await Property.countDocuments(query);
 
-        // Fetch properties with pagination
         const properties = await Property.find(query)
             .select('_id propertyAddress pendingTenants owner')
             .populate('pendingTenants', 'firstname lastname email phoneNumber createdAt')
-            .sort({ updatedAt: -1 }) // Most recently updated first
+            .sort({ updatedAt: -1 })
             .skip(skip)
             .limit(limit)
             .lean();
 
-        // Format the response
         const pendingRequests = properties.map(property => ({
             propertyId: property._id,
             propertyAddress: property.propertyAddress,
@@ -948,7 +955,6 @@ const getPendingTenantRequests = async (req, res) => {
             pendingCount: property.pendingTenants.length
         }));
 
-        // Return response with pagination metadata
         return res.status(200).json({
             success: true,
             data: pendingRequests,
@@ -971,12 +977,8 @@ const getPendingTenantRequests = async (req, res) => {
     }
 };
 
-
-
-// DELETE /api/properties/:propertyId/tenants/:tenantId
 const removeTenantFromProperty = async (req, res) => {
     try {
-
         if (!req.user?.id) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
@@ -1036,9 +1038,8 @@ const removeTenantFromProperty = async (req, res) => {
                 ? `You have been removed from ${updated.propertyAddress} by the property owner.`
                 : isAdmin
                     ? `You have been removed from ${updated.propertyAddress} by an administrator.`
-                    : `You have been removed from ${updated.propertyAddress}.`; // unreachable, but safe
+                    : `You have been removed from ${updated.propertyAddress}.`;
 
-        // Fire-and-forget — intentionally not awaited.
         Notification.create({
             recipient:       tenantId,
             type:            "TENANT_REMOVED",
@@ -1080,8 +1081,6 @@ const removeTenantFromProperty = async (req, res) => {
     }
 };
 
-
-// GET /api/properties/:propertyId/tenants
 const getTenantsOfProperty = async (req, res) => {
     try {
         if (!req.user?.id) {
@@ -1129,7 +1128,6 @@ const getTenantsOfProperty = async (req, res) => {
         return res.status(500).json({ success: false, message: "Internal server error" });
     }
 };
-
 
 module.exports = {
     createProperty,
