@@ -10,7 +10,10 @@ import {
   GlassCard, GradientButton, StatusBadge, EmptyState,
   Modal, SectionHeader, Badge, Avatar, Skeleton, StatCard,
 } from "../components/ui";
-import api from "../utility/axiosInstance";
+import { maintenanceService } from "../services/maintenanceService";
+import { propertyService } from "../services/propertyService";
+import { userService } from "../services/userService";
+import { dashboardService } from "../services/dashboardService";
 
 const CATEGORIES = ["plumbing", "electrical", "cleaning", "carpentry", "pest control", "others"];
 const PRIORITIES = ["low", "medium", "high"];
@@ -103,14 +106,14 @@ function CreateRequestModal({ open, onClose, onCreated }) {
   useEffect(() => {
     if (!open || !user) return;
     if (user.role === "landlord" || user.role === "admin") {
-      api.get("/properties").then(r => {
-        const props = r.data.data || [];
+      propertyService.getAllProperties().then(r => {
+        const props = r.data || [];
         setProperties(props);
         if (props.length > 0) setForm(f => ({ ...f, propertyId: props[0]._id }));
       }).catch(e => console.error(e));
     } else {
-      api.get("/dashboard").then(r => {
-        const props = r.data.rentedProperties || [];
+      dashboardService.getDashboardData().then(r => {
+        const props = r.rentedProperties || [];
         setProperties(props);
         if (props.length > 0) setForm(f => ({ ...f, propertyId: props[0]._id }));
       }).catch(e => console.error(e));
@@ -134,7 +137,7 @@ function CreateRequestModal({ open, onClose, onCreated }) {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => v && fd.append(k, v));
       if (image) fd.append("image", image);
-      await api.post("/maintenance", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      await maintenanceService.createRequest(fd);
       onCreated?.();
       onClose();
       setForm({ title: "", description: "", category: "plumbing", propertyId: "", priority: "medium" });
@@ -219,10 +222,9 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
 
   useEffect(() => {
     if (!open || !isLandlord) return;
-    api.get("/users?role=maintenance_staff").then(res => {
-      if (res.data.success) {
-        setStaffList(res.data.data);
-      }
+    userService.getUsers().then(res => {
+      const staff = (res.data || []).filter(u => u.role === "maintenance_staff");
+      setStaffList(staff);
     }).catch(e => console.error(e));
   }, [open, isLandlord]);
 
@@ -231,7 +233,7 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
     setAssigning(true);
     setAssignMsg("");
     try {
-      await api.put(`/maintenance/${req._id}/assign`, { staffId: selectedStaff.trim() });
+      await maintenanceService.assignStaff(req._id, selectedStaff.trim());
       setAssignMsg("Staff assigned successfully!");
       setSelectedStaff("");
     } catch (err) {
@@ -246,9 +248,9 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
     setSubmittingReview(true);
     setReviewMsg("");
     try {
-      await api.post(`/maintenance/${req._id}/review`, { rating: reviewRating, feedback: reviewFeedback });
+      await maintenanceService.submitReview(req._id, { rating: reviewRating, feedback: reviewFeedback });
       setReviewMsg("Review submitted! Thank you.");
-      if (onStatusChange) onStatusChange(req._id, "resolved"); // trigger a refresh
+      if (onStatusChange) onStatusChange(req._id, "resolved");
     } catch (err) {
       setReviewMsg("Failed to submit review.");
     } finally {
@@ -313,7 +315,6 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
         )}
         {isLandlord && req.status !== "resolved" && req.status !== "cancelled" && (
           <div className="pt-2 border-t border-slate-100 flex flex-col gap-3">
-            {/* Status actions */}
             <div className="flex gap-2">
               {req.status === "pending" && (
                 <GradientButton onClick={() => { onStatusChange(req._id, "in_progress"); onClose(); }} icon={<Zap className="size-4" />}>
@@ -326,7 +327,6 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
                 </GradientButton>
               )}
             </div>
-            {/* Staff assignment */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
               <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Assign Staff Member</p>
               <div className="flex gap-2">
@@ -355,7 +355,6 @@ function RequestDetailModal({ req, open, onClose, user, onStatusChange }) {
           </div>
         )}
 
-        {/* Review UI */}
         {req.status === "resolved" && (
           <div className="pt-4 border-t border-slate-100">
             {req.rating ? (
@@ -425,8 +424,8 @@ export default function Maintenance() {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/maintenance");
-      setRequests(res.data.requests || res.data || []);
+      const data = await maintenanceService.getRequests();
+      setRequests(data.requests || data || []);
     } catch {}
     finally { setLoading(false); }
   };
@@ -435,7 +434,7 @@ export default function Maintenance() {
 
   const handleStatusChange = async (id, status) => {
     try {
-      await api.put(`/maintenance/${id}/status`, { status });
+      await maintenanceService.updateRequestStatus(id, status);
       fetchRequests();
     } catch {}
   };
@@ -450,8 +449,6 @@ export default function Maintenance() {
   return (
     <Layout pageTitle="Maintenance">
       <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-900">Maintenance Requests</h1>
@@ -462,7 +459,6 @@ export default function Maintenance() {
           </GradientButton>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           <StatCard loading={loading} label="Total" value={total} icon={<Wrench className="size-5" />} color="blue" />
           <StatCard loading={loading} label="Pending" value={pending} icon={<Clock className="size-5" />} color="amber" />
@@ -470,13 +466,11 @@ export default function Maintenance() {
           <StatCard loading={loading} label="Resolved" value={resolved} icon={<CheckCircle2 className="size-5" />} color="green" />
         </div>
 
-        {/* Kanban Board */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {STATUS_COLS.map(col => {
             const colRequests = byStatus(col.key);
             return (
               <div key={col.key} className="flex flex-col">
-                {/* Column header */}
                 <div className={`flex items-center justify-between px-4 py-3 rounded-t-2xl ${col.bg} border border-b-0 ${col.border}`}>
                   <div className="flex items-center gap-2">
                     <col.icon className={`size-4 ${col.iconColor}`} />
@@ -489,7 +483,6 @@ export default function Maintenance() {
                   </span>
                 </div>
 
-                {/* Column body */}
                 <div className={`flex-1 border border-t-0 ${col.border} rounded-b-2xl p-3 min-h-[400px] max-h-[65vh] overflow-y-auto scrollbar-thin flex flex-col gap-2.5`}
                   style={{ background: col.key === "pending" ? "rgba(255, 251, 235, 0.4)" : col.key === "in_progress" ? "rgba(239, 246, 255, 0.4)" : "rgba(236, 253, 245, 0.4)" }}>
                   {loading ? (
@@ -519,7 +512,6 @@ export default function Maintenance() {
         </div>
       </div>
 
-      {/* FAB */}
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}

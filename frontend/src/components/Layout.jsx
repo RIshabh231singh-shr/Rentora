@@ -4,11 +4,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Building2, Search, Wrench, Zap, Calendar,
   Bell, MessageSquare, User, Settings, LogOut, ChevronLeft,
-  ChevronRight, Menu, X, Home, Plus, ChevronDown, ShieldCheck,
+  ChevronRight, Home, ShieldCheck, ChevronDown
 } from "lucide-react";
-import api from "../utility/axiosInstance";
 import { Avatar, Toast, Modal, GradientButton } from "./ui";
 import { io } from "socket.io-client";
+import { authService } from "../services/authService";
+import { userService } from "../services/userService";
+import { dashboardService } from "../services/dashboardService";
 
 /* ===================================================
    SIDEBAR CONTEXT
@@ -81,10 +83,10 @@ function Sidebar({ user, onLogout, notifCount }) {
   const handleRequestRole = async () => {
     setLoadingRole(true);
     try {
-      await api.post("/users/request-role", { requestedRole });
+      await userService.requestRoleChange(requestedRole);
       alert("Role change requested successfully!");
       setRoleModalOpen(false);
-      window.location.reload(); // Refresh to get updated user
+      window.location.reload();
     } catch (err) {
       alert(err.response?.data?.message || "Failed to request role");
     } finally {
@@ -226,7 +228,7 @@ function Sidebar({ user, onLogout, notifCount }) {
 /* ===================================================
    TOPBAR COMPONENT
    =================================================== */
-function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissToast }) {
+function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissToast, onRoleAction }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const { collapsed } = useSidebar();
@@ -408,7 +410,11 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
 
   const handleRoleAction = async (userId, action) => {
     try {
-      await api.post(`/users/role-request/${userId}/${action}`);
+      if (action === "approve") {
+        await userService.approveRoleRequest(userId);
+      } else {
+        await userService.rejectRoleRequest(userId);
+      }
       setNotifications(prev => prev.map(n => 
         n.relatedUser === userId && n.type === "ROLE_CHANGE_REQUEST" 
           ? { ...n, status: "read", message: `Role change to ${action}d.` } 
@@ -427,8 +433,8 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
 
   useEffect(() => {
     if (!user) return;
-    api.get("/dashboard").then(r => {
-      setNotifications(r.data.notifications || []);
+    dashboardService.getDashboardData().then(data => {
+      setNotifications(data.notifications || []);
     }).catch(() => {});
   }, [user]);
 
@@ -439,16 +445,23 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
     socket.on("notification", (data) => {
       const id = Date.now();
       const newNotif = {
-        _id: String(id) + Math.random().toString(36).substring(7),
+        _id: data._id || String(id) + Math.random().toString(36).substring(7),
         title: data.title || "New Notification",
         message: data.message || "",
-        status: "unread",
+        status: data.status || "unread",
         createdAt: new Date().toISOString(),
         type: data.type,
-        relatedUser: data.relatedUser
+        relatedUser: data.relatedUser,
+        relatedBooking: data.relatedBooking
       };
       setNotifications(prev => {
-        // Prevent duplicate socket emits (common in React StrictMode dev)
+        const existingIdx = prev.findIndex(n => n._id === newNotif._id);
+        if (existingIdx !== -1) {
+          const updated = [...prev];
+          updated[existingIdx] = { ...updated[existingIdx], ...newNotif };
+          return updated;
+        }
+        
         if (prev.length > 0) {
           const last = prev[0];
           if (last.title === newNotif.title && last.message === newNotif.message && (Date.now() - new Date(last.createdAt).getTime() < 2000)) {
@@ -467,14 +480,14 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
   }, [user]);
 
   const handleLogout = async () => {
-    try { await api.post("/auth/logout"); } catch {}
+    try { await authService.logout(); } catch {}
     localStorage.removeItem("user");
     navigate("/login");
   };
 
   const handleMarkRead = async () => {
     try {
-      await api.put("/notifications/mark-read");
+      await dashboardService.markNotificationsAsRead();
       setNotifications(prev => prev.map(n => ({ ...n, status: "read" })));
     } catch (err) {
       console.error("Failed to mark notifications read");

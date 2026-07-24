@@ -10,7 +10,10 @@ import {
   GlassCard, GradientButton, StatusBadge, EmptyState,
   Modal, SectionHeader, Badge, Skeleton, StatCard, Avatar,
 } from "../components/ui";
-import api from "../utility/axiosInstance";
+import { userService } from "../services/userService";
+import { dashboardService } from "../services/dashboardService";
+import { maintenanceService } from "../services/maintenanceService";
+import { propertyService } from "../services/propertyService";
 
 const ROLE_COLORS = {
   tenant: "bg-blue-100 text-blue-700",
@@ -103,7 +106,6 @@ export default function AdminPanel() {
   const [kpi, setKpi] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // User Management State
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [page, setPage] = useState(1);
@@ -111,7 +113,6 @@ export default function AdminPanel() {
   const [totalUsers, setTotalUsers] = useState(0);
   const [fetchingUsers, setFetchingUsers] = useState(false);
 
-  // Maintenance State
   const [properties, setProperties] = useState([]);
   const [propertyFilter, setPropertyFilter] = useState("all");
 
@@ -120,15 +121,14 @@ export default function AdminPanel() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const [dashRes, maintRes, kpiRes, propRes] = await Promise.all([
-        api.get("/dashboard"),
-        api.get("/maintenance"),
-        api.get("/maintenance/kpi"),
-        api.get("/properties") // Admin can fetch all properties to filter
+      const [maintData, kpiData, propData] = await Promise.all([
+        maintenanceService.getRequests(),
+        maintenanceService.getKPIs(),
+        propertyService.getAllProperties()
       ]);
-      setMaintenance(maintRes.data.requests || maintRes.data || []);
-      setKpi(kpiRes.data.data);
-      setProperties(propRes.data.data || []);
+      setMaintenance(maintData.requests || maintData || []);
+      setKpi(kpiData.data);
+      setProperties(propData.data || []);
     } catch (err) {
       console.error("Admin fetch error:", err);
     } finally {
@@ -139,14 +139,18 @@ export default function AdminPanel() {
   const fetchUsersData = async () => {
     setFetchingUsers(true);
     try {
-      let url = `/users?page=${page}&limit=10`;
-      if (search) url += `&search=${search}`;
-      if (roleFilter !== "all") url += `&role=${roleFilter}`;
-      
-      const res = await api.get(url);
-      setUsers(res.data.data || []);
-      setTotalPages(res.data.pagination?.pages || 1);
-      setTotalUsers(res.data.pagination?.total || 0);
+      const res = await userService.getUsers();
+      let list = res.data || [];
+      if (search) {
+        list = list.filter(u => `${u.firstname} ${u.lastname} ${u.email}`.toLowerCase().includes(search.toLowerCase()));
+      }
+      if (roleFilter !== "all") {
+        list = list.filter(u => u.role === roleFilter);
+      }
+      setTotalUsers(list.length);
+      setTotalPages(Math.ceil(list.length / 10) || 1);
+      const start = (page - 1) * 10;
+      setUsers(list.slice(start, start + 10));
     } catch (err) {
       console.error("User fetch error:", err);
     } finally {
@@ -167,7 +171,7 @@ export default function AdminPanel() {
   const handleRoleChange = async (userId, newRole) => {
     if (!window.confirm(`Change this user's role to ${newRole}?`)) return;
     try {
-      await api.put(`/users/${userId}/role`, { role: newRole });
+      await userService.updateUserRole(userId, newRole);
       fetchUsersData();
     } catch (err) {
       alert("Failed to update role");
@@ -318,7 +322,6 @@ export default function AdminPanel() {
               </div>
             )}
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
                 <p className="text-xs font-semibold text-slate-500">Page {page} of {totalPages}</p>
@@ -363,7 +366,6 @@ export default function AdminPanel() {
               </select>
             </div>
 
-            {/* Status breakdown */}
             <div className="grid grid-cols-4 gap-3 mb-6">
               {[
                 { label: "Pending", val: maintenance.filter(r => r.status === "pending").length, color: "bg-amber-100 text-amber-700" },

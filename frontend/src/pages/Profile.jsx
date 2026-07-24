@@ -6,7 +6,9 @@ import {
 } from "lucide-react";
 import Layout from "../components/Layout";
 import { GlassCard, GradientButton, StatusBadge, Badge, Avatar, SectionHeader, Skeleton } from "../components/ui";
-import api from "../utility/axiosInstance";
+import { authService } from "../services/authService";
+import { userService } from "../services/userService";
+import { dashboardService } from "../services/dashboardService";
 
 function ProfileField({ icon: Icon, label, value, verified }) {
   return (
@@ -76,11 +78,9 @@ export default function Profile() {
     
     setUploadingPic(true);
     try {
-      const res = await api.post("/users/profile-picture", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-      setUser(res.data.data);
-      localStorage.setItem("user", JSON.stringify(res.data.data));
+      const res = await userService.uploadProfilePicture(formData);
+      setUser(res.data);
+      localStorage.setItem("user", JSON.stringify(res.data));
       alert("Profile picture updated!");
     } catch (err) {
       alert("Failed to upload profile picture");
@@ -95,7 +95,7 @@ export default function Profile() {
       const u = JSON.parse(s);
       setUser(u);
       setForm({ firstname: u.firstname || "", lastname: u.lastname || "", phoneNumber: u.phoneNumber || "" });
-      api.get("/dashboard").then(r => { setDashData(r.data); setLoading(false); }).catch(() => setLoading(false));
+      dashboardService.getDashboardData().then(r => { setDashData(r); setLoading(false); }).catch(() => setLoading(false));
     }
   }, []);
 
@@ -109,15 +109,12 @@ export default function Profile() {
   return (
     <Layout pageTitle="Profile">
       <div className="p-6 lg:p-8 max-w-4xl mx-auto">
-
-        {/* Profile Hero */}
         <div className="relative rounded-3xl overflow-hidden mb-8 p-8"
           style={{ background: "linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0C1A3A 100%)" }}>
           <div className="blob w-48 h-48 bg-blue-500/20 top-0 right-0 animate-blob" />
           <div className="blob w-32 h-32 bg-indigo-500/15 bottom-0 left-20 animate-blob" style={{ animationDelay: "2s" }} />
 
           <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            {/* Avatar */}
             <div className="relative">
               <div className="size-24 rounded-2xl overflow-hidden ring-4 ring-white/20">
                 <Avatar name={`${user?.firstname} ${user?.lastname}`} size="xl" src={user?.profilePicture} />
@@ -132,7 +129,6 @@ export default function Profile() {
               </button>
             </div>
 
-            {/* Info */}
             <div className="flex-1 text-center sm:text-left">
               <h1 className="text-3xl font-extrabold text-white mb-1">{user?.firstname} {user?.lastname}</h1>
               <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start mb-3">
@@ -146,7 +142,6 @@ export default function Profile() {
               <p className="text-slate-400 text-sm">{user?.email}</p>
             </div>
 
-            {/* Completion ring */}
             <div className="text-center">
               <CompletionRing percentage={completionPct} />
               <p className="text-slate-400 text-xs mt-2 font-medium">Profile complete</p>
@@ -155,10 +150,7 @@ export default function Profile() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Profile Details */}
           <div className="lg:col-span-2 flex flex-col gap-6">
-
-            {/* Contact Details */}
             <GlassCard className="p-5">
               <SectionHeader
                 title="Profile Details"
@@ -171,7 +163,7 @@ export default function Profile() {
                         setSaving(true);
                         setMsg("");
                         try {
-                          await api.patch("/auth/profile", form);
+                          await authService.updateProfile(form);
                           const updated = { ...user, ...form };
                           localStorage.setItem("user", JSON.stringify(updated));
                           setUser(updated);
@@ -209,7 +201,6 @@ export default function Profile() {
               )}
             </GlassCard>
 
-            {/* Recent Maintenance */}
             {dashData?.recentRequests?.length > 0 && (
               <GlassCard className="p-5">
                 <SectionHeader title="Recent Maintenance" />
@@ -231,9 +222,7 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Right: Stats */}
           <div className="flex flex-col gap-5">
-            {/* Stats cards */}
             {[
               { label: "Upcoming Bookings", value: stats?.upcomingBookings ?? 0, icon: Calendar, color: "from-blue-500 to-blue-600" },
               { label: "Active Requests", value: stats?.activeRequests ?? 0, icon: Wrench, color: "from-amber-500 to-amber-600" },
@@ -249,7 +238,6 @@ export default function Profile() {
               </div>
             ))}
 
-            {/* Rented properties */}
             {dashData?.rentedProperties?.length > 0 && (
               <GlassCard className="p-4">
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Current Rentals</p>

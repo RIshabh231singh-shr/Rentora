@@ -4,7 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Bell, CheckCircle2, Clock, X, ChevronDown, Filter, Building2, Wrench, Users, ShieldCheck } from "lucide-react";
 import Layout from "../components/Layout";
 import { GlassCard, GradientButton, StatusBadge, EmptyState, SectionHeader, Badge, Skeleton } from "../components/ui";
-import api from "../utility/axiosInstance";
+import { dashboardService } from "../services/dashboardService";
+import { bookingService } from "../services/bookingService";
+import { propertyService } from "../services/propertyService";
+import { userService } from "../services/userService";
 
 const TYPE_ICONS = {
   BOOKING_CREATED: { icon: Building2, color: "bg-blue-100 text-blue-600", label: "Booking" },
@@ -27,12 +30,10 @@ function NotifItem({ notif, onApproveBooking, onRejectBooking, onApproveLease, o
       className={`p-5 rounded-2xl border transition-colors ${notif.status === "unread" ? "bg-blue-50/50 border-blue-100" : "bg-white border-slate-100 hover:bg-slate-50"}`}
     >
       <div className="flex items-start gap-4">
-        {/* Icon */}
         <div className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
           <Icon className="size-5" />
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1">
             <div className="flex items-center gap-2 flex-wrap">
@@ -55,7 +56,6 @@ function NotifItem({ notif, onApproveBooking, onRejectBooking, onApproveLease, o
           </div>
           <p className="text-slate-600 text-sm leading-relaxed">{notif.message}</p>
 
-          {/* Action buttons */}
           <div className="mt-3 flex gap-2 flex-wrap">
             {notif.type === "BOOKING_CREATED" && bookingId && isPendingBooking && (
               <>
@@ -165,8 +165,8 @@ export default function Notifications() {
   const fetchNotifications = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/dashboard");
-      setNotifications(res.data.notifications || []);
+      const data = await dashboardService.getDashboardData();
+      setNotifications(data.notifications || []);
     } catch {}
     finally { setLoading(false); }
   };
@@ -175,13 +175,17 @@ export default function Notifications() {
 
   const handleMarkAllRead = async () => {
     setNotifications(prev => prev.map(n => ({ ...n, status: "read" })));
-    try { await api.put("/dashboard/notifications/mark-read"); } catch {}
+    try { await dashboardService.markNotificationsAsRead(); } catch {}
   };
 
   const handleApproveBooking = async (bookingId, notifId, action = "approve") => {
     setActioning(notifId);
     try {
-      await api.put(`/bookings/${bookingId}/${action}`);
+      if (action === "approve-cancellation") {
+        await bookingService.approveCancellation(bookingId);
+      } else {
+        await bookingService.approveBooking(bookingId);
+      }
       await fetchNotifications();
     } catch {}
     finally { setActioning(null); }
@@ -190,7 +194,7 @@ export default function Notifications() {
   const handleRejectBooking = async (bookingId, notifId) => {
     setActioning(notifId);
     try {
-      await api.put(`/bookings/${bookingId}/reject`);
+      await bookingService.rejectBooking(bookingId);
       await fetchNotifications();
     } catch {}
     finally { setActioning(null); }
@@ -199,7 +203,7 @@ export default function Notifications() {
   const handleApproveLease = async (propertyId, tenantId, notifId) => {
     setActioning(notifId);
     try {
-      await api.post(`/properties/${propertyId}/tenants/${tenantId}/accept`);
+      await propertyService.acceptTenantRequest(propertyId, tenantId);
       await fetchNotifications();
     } catch {}
     finally { setActioning(null); }
@@ -208,7 +212,7 @@ export default function Notifications() {
   const handleRejectLease = async (propertyId, tenantId, notifId) => {
     setActioning(notifId);
     try {
-      await api.post(`/properties/${propertyId}/tenants/${tenantId}/reject`);
+      await propertyService.rejectTenantRequest(propertyId, tenantId);
       await fetchNotifications();
     } catch {}
     finally { setActioning(null); }
@@ -217,7 +221,11 @@ export default function Notifications() {
   const handleRoleAction = async (userId, action, notifId) => {
     setActioning(notifId);
     try {
-      await api.post(`/users/role-request/${userId}/${action}`);
+      if (action === "approve") {
+        await userService.approveRoleRequest(userId);
+      } else {
+        await userService.rejectRoleRequest(userId);
+      }
       await fetchNotifications();
     } catch (err) {
       alert(err.response?.data?.message || `Failed to ${action} role`);
@@ -238,8 +246,6 @@ export default function Notifications() {
   return (
     <Layout pageTitle="Notifications">
       <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <div className="flex items-center gap-3">
@@ -257,7 +263,6 @@ export default function Notifications() {
           )}
         </div>
 
-        {/* Filter tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
           {FILTERS.map(f => (
             <button
@@ -275,7 +280,6 @@ export default function Notifications() {
           ))}
         </div>
 
-        {/* Notification list */}
         {loading ? (
           <div className="flex flex-col gap-3">
             {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-24" />)}

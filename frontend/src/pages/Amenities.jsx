@@ -10,7 +10,8 @@ import {
   GlassCard, GradientButton, StatusBadge, EmptyState,
   Modal, SectionHeader, Badge, Skeleton, StatCard,
 } from "../components/ui";
-import api from "../utility/axiosInstance";
+import { amenityService } from "../services/amenityService";
+import { bookingService } from "../services/bookingService";
 
 const AMENITY_ICONS = {
   gym: Dumbbell, pool: Waves, "swimming pool": Waves, tennis: Trophy, badminton: Trophy,
@@ -45,7 +46,6 @@ function AmenityCard({ amenity, idx, onBook, myBookings }) {
       className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 cursor-pointer group"
       onClick={() => onBook(amenity)}
     >
-      {/* Header gradient */}
       <div className={`bg-gradient-to-br ${gradient} p-8 flex items-center justify-center relative overflow-hidden`}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 80% 20%, white 0%, transparent 60%)" }} />
         <div className="size-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
@@ -58,7 +58,6 @@ function AmenityCard({ amenity, idx, onBook, myBookings }) {
         )}
       </div>
 
-      {/* Info */}
       <div className="p-5">
         <h3 className="font-bold text-slate-900 text-lg mb-1">{amenity.name}</h3>
         <p className="text-slate-500 text-xs mb-3 capitalize">{amenity.category} · {amenity.property?.propertyName || "Property"}</p>
@@ -123,8 +122,8 @@ function AmenityBookingModal({ amenity, open, onClose, myBookings, onBooked }) {
 
   useEffect(() => {
     if (!amenity || !date) return;
-    api.get(`/bookings/amenity/${amenity._id}/availability`, { params: { date } })
-      .then(r => setBookedIntervals(r.data.bookedIntervals || []))
+    bookingService.getSlotAvailability(amenity._id, date)
+      .then(r => setBookedIntervals(r.bookedIntervals || []))
       .catch(() => {});
   }, [amenity, date]);
 
@@ -147,12 +146,12 @@ function AmenityBookingModal({ amenity, open, onClose, myBookings, onBooked }) {
     try {
       const s = new Date(date); s.setHours(startHour, 0, 0, 0);
       const e = new Date(date); e.setHours(endHour, 0, 0, 0);
-      await api.post("/bookings/book", { amenityId: amenity._id, bookingStartTime: s.toISOString(), bookingEndTime: e.toISOString() });
-      setMsg({ type: "success", text: "🎉 Slot booked successfully!" });
+      await bookingService.bookAmenity({ amenityId: amenity._id, bookingStartTime: s.toISOString(), bookingEndTime: e.toISOString() });
+      setMsg({ type: "success", text: "🎉 Your booking request has been sent to the landlord." });
       setStartHour(null); setEndHour(null);
       onBooked?.();
-      api.get(`/bookings/amenity/${amenity._id}/availability`, { params: { date } })
-        .then(r => setBookedIntervals(r.data.bookedIntervals || [])).catch(e => console.error("Availability error:", e));
+      bookingService.getSlotAvailability(amenity._id, date)
+        .then(r => setBookedIntervals(r.bookedIntervals || [])).catch(err => console.error("Availability error:", err));
     } catch (err) {
       setMsg({ type: "error", text: err.response?.data?.message || "Booking failed." });
     } finally {
@@ -160,12 +159,9 @@ function AmenityBookingModal({ amenity, open, onClose, myBookings, onBooked }) {
     }
   };
 
-  const Icon = getIcon(amenity.name);
-
   return (
     <Modal open={open} onClose={onClose} title={amenity.name} width="max-w-lg">
       <div className="flex flex-col gap-5">
-        {/* Tabs */}
         <div className="flex rounded-xl bg-slate-100 p-1 gap-1">
           {["book", "my bookings"].map(t => (
             <button
@@ -180,7 +176,6 @@ function AmenityBookingModal({ amenity, open, onClose, myBookings, onBooked }) {
 
         {tab === "book" ? (
           <>
-            {/* Amenity info */}
             <div className="grid grid-cols-3 gap-3">
               {[
                 { label: "Rate", value: `₹${amenity.pricePerHour}/hr`, color: "text-blue-600" },
@@ -194,13 +189,11 @@ function AmenityBookingModal({ amenity, open, onClose, myBookings, onBooked }) {
               ))}
             </div>
 
-            {/* Date picker */}
             <div>
               <label className="form-label">Date</label>
               <input type="date" className="form-input" value={date} min={new Date().toISOString().split("T")[0]} onChange={e => { setDate(e.target.value); setStartHour(null); setEndHour(null); }} />
             </div>
 
-            {/* Time slots */}
             <div>
               <p className="form-label">Select Time Slot <span className="text-slate-400 font-normal text-xs">(tap start then end)</span></p>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -279,12 +272,12 @@ export default function Amenities() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [amenRes, bookRes] = await Promise.all([
-        api.get("/amenities"),
-        api.get("/bookings/my"),
+      const [amenData, bookData] = await Promise.all([
+        amenityService.getAmenities(),
+        bookingService.getMyBookings(),
       ]);
-      setAmenities(amenRes.data.amenities || amenRes.data || []);
-      const allBookings = bookRes.data.bookings || bookRes.data || [];
+      setAmenities(amenData.amenities || amenData || []);
+      const allBookings = bookData.bookings || bookData || [];
       setMyBookings(allBookings.filter(b => b.amenity));
     } catch (e) {
       console.error("Failed to fetch data:", e);
@@ -300,8 +293,6 @@ export default function Amenities() {
   return (
     <Layout pageTitle="Amenities">
       <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-900">Amenities</h1>
@@ -309,14 +300,12 @@ export default function Amenities() {
           </div>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           <StatCard loading={loading} label="Available" value={amenities.length} icon={<Zap className="size-5" />} color="blue" />
           <StatCard loading={loading} label="My Bookings" value={totalBooked} icon={<Calendar className="size-5" />} color="indigo" />
           <StatCard loading={loading} label="Active Now" value={checkedIn} icon={<CheckCircle2 className="size-5" />} color="green" />
         </div>
 
-        {/* Grid */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-80" />)}
@@ -341,7 +330,6 @@ export default function Amenities() {
           </div>
         )}
 
-        {/* My Recent Bookings */}
         {myBookings.length > 0 && (
           <GlassCard className="mt-8 p-5">
             <SectionHeader title="My Recent Amenity Bookings" />

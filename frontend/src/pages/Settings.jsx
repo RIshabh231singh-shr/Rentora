@@ -3,14 +3,12 @@ import { motion } from "framer-motion";
 import { Bell, Shield, Palette, User, Save, Moon, Sun, Monitor, Check, LogOut } from "lucide-react";
 import Layout from "../components/Layout";
 import { GlassCard, GradientButton, SectionHeader } from "../components/ui";
-import api from "../utility/axiosInstance";
+import { authService } from "../services/authService";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
   { key: "account", label: "Account", icon: User }
 ];
-
-
 
 function SettingRow({ icon: Icon, label, description, action }) {
   return (
@@ -38,8 +36,6 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
 
-
-
   const [profileForm, setProfileForm] = useState({ firstname: "", lastname: "", phoneNumber: "" });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [passMsg, setPassMsg] = useState("");
@@ -58,7 +54,7 @@ export default function SettingsPage() {
     setSaving(true);
     setProfMsg("");
     try {
-      await api.patch("/auth/profile", profileForm);
+      await authService.updateProfile(profileForm);
       const updated = { ...user, ...profileForm };
       localStorage.setItem("user", JSON.stringify(updated));
       setUser(updated);
@@ -80,7 +76,7 @@ export default function SettingsPage() {
     setSaving(true);
     setPassMsg("");
     try {
-      await api.patch("/auth/change-password", {
+      await authService.changePassword({
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword
       });
@@ -94,7 +90,7 @@ export default function SettingsPage() {
   };
 
   const handleLogout = async () => {
-    try { await api.post("/auth/logout"); } catch {}
+    try { await authService.logout(); } catch {}
     localStorage.removeItem("user");
     navigate("/login");
   };
@@ -176,7 +172,6 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex gap-6 flex-col lg:flex-row">
-          {/* Tab sidebar */}
           <div className="w-full lg:w-52 shrink-0">
             <GlassCard className="p-2">
               {TABS.map(({ key, label, icon: Icon }) => (
@@ -194,7 +189,6 @@ export default function SettingsPage() {
             </GlassCard>
           </div>
 
-          {/* Content */}
           <div className="flex-1">
             <motion.div
               key={tab}
