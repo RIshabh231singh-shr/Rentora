@@ -1,669 +1,887 @@
-﻿<div align="center">
+<div align="center">
 
-<img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="Version">
-<img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen?style=for-the-badge&logo=node.js" alt="Node">
-<img src="https://img.shields.io/badge/react-19-61DAFB?style=for-the-badge&logo=react" alt="React">
-<img src="https://img.shields.io/badge/express-5.x-000000?style=for-the-badge&logo=express" alt="Express">
-<img src="https://img.shields.io/badge/mongodb-mongoose-47A248?style=for-the-badge&logo=mongodb" alt="MongoDB">
-<img src="https://img.shields.io/badge/redis-caching-DC382D?style=for-the-badge&logo=redis" alt="Redis">
-<img src="https://img.shields.io/badge/socket.io-realtime-010101?style=for-the-badge&logo=socket.io" alt="Socket.IO">
-<img src="https://img.shields.io/badge/license-ISC-yellow?style=for-the-badge" alt="License">
+# 🏠 RENTORA
+### *Production-Grade Real-Time Property Rental, Amenity & Maintenance Management Platform*
 
-<br/><br/>
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=for-the-badge&logo=semver)](https://github.com/RIshabh231singh-shr/Rentora)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933.svg?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-19.0.0-61DAFB.svg?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Express](https://img.shields.io/badge/Express-5.2.1-000000.svg?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose--9.6-47A248.svg?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Redis](https://img.shields.io/badge/Redis-Sliding--Window--Limiter-DC382D.svg?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-Realtime--Engine-010101.svg?style=for-the-badge&logo=socketdotio&logoColor=white)](https://socket.io/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4.3.0-06B6D4.svg?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-v8.0-646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![License](https://img.shields.io/badge/License-ISC-yellow.svg?style=for-the-badge)](./LICENSE)
 
-<h1>🏠 Rentora</h1>
-<p><strong>Premium Real-Time Property Rental, Maintenance &amp; Amenity Management Platform</strong></p>
+<br/>
 
-<p>
-  Rentora is a full-stack, role-based property management web application built for landlords, tenants, and administrators.
-  It handles everything from property listings and amenity bookings to real-time maintenance tracking, in-app messaging,
-  and Redis-powered KPI dashboards — all wrapped in a modern, dark glassmorphism UI.
+<p align="center">
+  <strong>Rentora</strong> is an enterprise-ready, multi-tenant property rental ecosystem engineered to streamline property listings, hourly/monthly amenity bookings, real-time maintenance lifecycle tracking with strict SLA metrics, direct WebSocket messaging, and role-based access control (RBAC). Built with a modern dark glassmorphic UI.
+</p>
+
+<p align="center">
+  <a href="#-live-demo">Live Demo</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-project-architecture">Architecture</a> •
+  <a href="#-api-documentation">API Docs</a> •
+  <a href="#-database-design">Database Schema</a> •
+  <a href="#-installation">Getting Started</a>
 </p>
 
 </div>
 
 ---
 
-## 📸 Screenshots
+## 📌 Project Overview
 
-| Dashboard | Browse Properties |
-|:---:|:---:|
-| ![Dashboard](./docs/screenshots/dashboard.png) | ![Find Properties](./docs/screenshots/properties.png) |
+### 💡 The Problem
+Traditional rental and property management systems suffer from fragmented communication channels, opaque maintenance processing, inefficient amenity scheduling, and lack of real-time visibility. Property managers struggle to monitor service level agreements (SLAs), while tenants face friction when booking shared facilities (gyms, pools, clubhouses) or requesting urgent maintenance repairs.
 
-> 📝 *Replace the above placeholders with real screenshots after deploying locally.*
+### 🎯 The Motivation
+Rentora was developed as a flagship, production-grade web application during the **Unified Mentor Internship** to bridge the gap between landlords, tenants, maintenance staff, and platform administrators. The objective was to build a secure, resilient, high-throughput system capable of handling concurrent bookings, sub-second socket communication, atomic rate-limiting, and automated SLA compliance tracking.
+
+### 🚀 The Solution
+Rentora introduces a unified real-time dashboard powered by **React 19**, **Express 5**, **MongoDB**, **Redis**, and **Socket.IO**. Key highlights include:
+1. **Multi-Role RBAC System**: Granular access control for `tenant`, `landlord`, `maintenance_staff`, and `admin`.
+2. **Double-Buffered Booking Engine**: Server-side slot overlap prevention for both property rentals and hourly amenity reservations.
+3. **Redis Sliding Window Rate Limiter**: ZSET-based atomic rate limiting for auth endpoints (5 req/15min) to prevent brute-force attacks.
+4. **Maintenance SLA Tracking**: Real-time resolution metrics computing **Average Resolution Time (SLA ≤ 48h)** and **Completion Rate (KPI ≥ 90%)**.
+5. **Instant WebSocket Messaging**: Private peer-to-peer chat between landlords and tenants with room-isolated socket events.
+6. **Dark Glassmorphic UI**: High-end user interface designed with Tailwind CSS v4, Framer Motion animations, and Lucide icons.
 
 ---
 
-## ✨ Features
+## 🌐 Live Demo
 
-### 🔐 Authentication & Security
-- Email/password registration with **OTP-based email verification** (via Nodemailer)
-- **Google OAuth 2.0** sign-in and sign-up (`google-auth-library`)
-- JWT-based dual-token system: **access token (15 min)** + **refresh token (7 days)** in HttpOnly cookies
-- Automatic token refresh via Axios response interceptor (silent re-auth on 401)
-- Token **blacklisting on logout** stored in Redis (per-token TTL expiry)
-- **Redis Sliding Window Rate Limiter** on all auth endpoints:
-  - Strict: 5 req / 15 min — login, register, forgot/reset password, Google auth
-  - Moderate: 10 req / 15 min — OTP verify, OTP resend
-  - Loose: 30 req / min — token refresh
-- OTP cooldown enforcement (60s resend cooldown per email)
-- Forgot Password & Reset Password via OTP email flow
-- Change password (authenticated users)
-- Profile picture upload via Cloudinary
+| Service | Environment | URL |
+|---|---|---|
+| **Frontend Application** | Production / Local | `http://localhost:5173` |
+| **Backend REST API** | Production / Local | `http://localhost:5000/api` |
+| **WebSocket Engine** | Socket.IO Server | `ws://localhost:5000` |
 
-### 🏘️ Property Management
-- **Landlords** can create, update, and delete properties
-- Property types: `gym`, `house`, `villa`, `swimmingpool`, `commercial`, `other`
-- Multiple image upload (Multer → Cloudinary, max 5 images)
-- Pricing: hourly or monthly rent types, with security deposit
-- Tenant request system: tenants request to join, landlords accept/reject
-- **Server-side paginated** property listings (`?page=&limit=`, default 12/page, max 50)
-- Redis cache for property listings (cache-busting on mutation)
+### 🔑 Demo Credentials
 
-### 🔍 Property Discovery
-- **Browse Properties** (`/explore`): all available properties for any authenticated user
-- **My Rentals** (`/my-rentals`): tenant's current rented properties with owner contact info
-- **My Properties** (`/properties`): landlord's owned listings with full CRUD
+> [!TIP]
+> Run `npm run seed` inside the `backend` directory to automatically populate the database with these test accounts!
 
-### 📅 Booking System
-- **Amenity bookings**: book time slots at a property's amenity (gym, pool, etc.)
-- **Property bookings**: book entire property for a time range
-- **Slot availability** checking to prevent double-booking (server-side overlap validation)
-- Booking lifecycle: `pending` → `booked` → `checked_in` → `completed` / `cancelled`
-- Landlord can **approve or reject** bookings
-- Tenant can **request cancellation**; landlord approves/rejects
-- Check-in and check-out flow
-- Server-side paginated booking list (`?page=&limit=`, default 20/page)
+| Role | Email | Password | Access Level |
+|---|---|---|---|
+| 👑 **Admin** | `admin@rentora.com` | `Admin@123` | Full system control, role request approvals, global maintenance KPIs |
+| 🏡 **Landlord** | `landlord@rentora.com` | `Landlord@123` | Property management, tenant request approvals, staff assignment |
+| 🧑‍💼 **Tenant** | `tenant@rentora.com` | `Tenant@123` | Property search, amenity booking, maintenance logging, chat |
+| 🛠️ **Staff** | `staff@rentora.com` | `Staff@123` | Assigned maintenance tickets management & status updates |
 
-### 🔧 Maintenance Management
-- Tenants submit maintenance requests (title, description, category, optional image)
-- Categories: `plumbing`, `electrical`, `cleaning`, `others`
-- Permission check: only current tenants or users with active bookings can submit
-- Image upload to Cloudinary (`rentora_maintenance` folder)
-- **Status workflow**: `pending` → `assigned` → `in_progress` → `resolved` / `cancelled`
-- Landlord/Admin can **assign a staff member** (by User ID) to a request
-- Real-time **Socket.IO push notification** to tenant on status change or staff assignment
-- **KPI Endpoint** (`GET /api/maintenance/kpi`):
-  - Total / resolved / pending / in-progress counts
-  - Completion Rate % (target: ≥ 90%)
-  - Average Resolution Time in hours (SLA target: ≤ 48 h)
-  - `meetsSLA` boolean flag
-- Role-scoped: tenants see their own, landlords see their properties', admins see all
+---
 
-### 🏋️ Amenity Management
-- Landlords create and manage amenities per property
-- Fields: name, description, category, capacity, pricePerHour, openingHour, closingHour, images
-- Slot duration configuration; active/inactive toggle
-- Any authenticated user can view amenities
+## 📸 Screenshots
 
-### 💬 Real-Time Messaging
-- Direct messaging between any two users via **Socket.IO**
-- Messages stored in MongoDB (sender, receiver, text, read)
-- Real-time delivery (`send_message` / `new_message` events)
-- Sender acknowledgment (`message_sent` event)
-- Read receipts (`mark_read` / `messages_read` events)
-- Left panel shows conversation list
+<div align="center">
 
-### 🔔 Notifications
-- Persistent notification records in MongoDB with **14 event types** (tenant/booking/maintenance/role lifecycle)
-- Real-time toast notifications via Socket.IO (auto-dismiss after 6 s)
-- Notification badge in sidebar and topbar with unread count
-- "Mark all as read" (clears dashboard Redis cache)
-- Dedicated `/notifications` page with full history
+| 📊 Executive KPI Dashboard | 🏠 Find & Filter Properties |
+|:---:|:---:|
+| ![Dashboard Screenshot](./docs/screenshots/dashboard.png) | ![Properties Screenshot](./docs/screenshots/properties.png) |
+| *Role-aware analytics, SLA badges & real-time activity feed* | *Advanced filtering by city, price range, and property type* |
 
-### 📊 Dashboard & KPIs
-- **Role-aware dashboard** (different data for tenant / landlord / admin)
-- Tenant: active requests, upcoming bookings, current booking, rented properties
-- Landlord: pending bookings, pending tenant requests, maintenance count
-- Admin: all-platform maintenance stats
-- **3 KPI Widgets**: Completion Rate (color-coded), Avg Resolution Time (SLA badge), Request Breakdown
-- Recent maintenance requests (top 3); upcoming bookings list (top 5)
-- Dashboard data cached in Redis (10 min TTL, auto-invalidated on write)
+</div>
 
-### 🛡️ Admin Panel (`/admin`)
-- Exclusive to `admin` role users
-- KPI cards: Total requests, Completion %, Avg Resolution Time, Active count
-- Color-coded SLA indicators (green = within 48 h, red = breach)
-- Overview tab + full maintenance request list
+> 📝 *Note: Additional page visual mocks can be captured and added to `./docs/screenshots/`.*
 
-### 👤 User & Role Management
-- Four roles: `tenant`, `landlord`, `admin`, `maintenance_staff`
-- Users can **request a role change** from the sidebar (`requestedRole` field)
-- Admins approve/deny via `PUT /api/users/:id/role`
-- Profile update (name, phone), profile picture via Cloudinary
+---
 
-### 🎨 UI & UX
-- Dark glassmorphism design with animated blobs on landing screen
-- Collapsible sidebar with spring animations (Framer Motion)
-- Topbar notification dropdown + profile dropdown
-- Auto-dismissing toast notifications
-- 404 page with gradient text and "Back to Rentora" button
-- Role-based navigation items built dynamically per user role
+## ✨ Key Features
+
+### 🔐 1. Authentication & Security Strategy
+- **Dual JWT Token Architecture**: Short-lived `accessToken` (15 mins) and long-lived `refreshToken` (7 days) served strictly inside `HttpOnly`, `Secure`, `SameSite=None` cookies.
+- **Redis Token Blacklisting**: Instant invalidation on `/api/auth/logout` by pushing active token JTI/signatures into Redis with TTL expiry.
+- **Google OAuth 2.0 Integration**: One-click registration and authentication via `google-auth-library` server verification.
+- **OTP Verification Flow**: Email verification using 6-digit OTPs powered by `nodemailer` with 60-second resend rate limits.
+- **Redis Sliding Window Rate Limiting**: Built from scratch using Redis `ZSET` pipelines:
+  - **Strict Tier**: 5 requests / 15 mins (login, register, forgot/reset password, google auth).
+  - **OTP Tier**: 10 requests / 15 mins (verify OTP, resend OTP).
+  - **Refresh Tier**: 30 requests / 1 min (token refresh).
+
+### 🏡 2. Property Management
+- Comprehensive CRUD operations for property owners (`landlords`).
+- Multi-image upload integration backed by **Cloudinary CDN** and `multer`.
+- Filtering by city, state, price range, capacity, property category (`house`, `villa`, `gym`, `swimmingpool`, `commercial`, `other`), and rental type (`hourly`, `monthly`).
+- Tenant application approval flow (`pendingTenants` $\rightarrow$ `tenants`).
+
+### 🏋️ 3. Hourly Amenity Reservation
+- Dynamic operating hours validation (`openingHour` to `closingHour`).
+- Slot availability engine calculating overlapping bookings to guarantee **0 double-booking conflicts**.
+- Support for hourly pricing, custom slot durations, and total payment calculation.
+
+### 🛠️ 4. Maintenance & SLA Management
+- Maintenance ticket submission with category tags and image uploads.
+- **Automated SLA Metric Engine**:
+  - **Resolution Rate Target**: $\ge 90\%$ (dynamic status calculation).
+  - **Target Resolution Time**: $\le 48\text{ hours}$ SLA enforcement with UI breach alerts.
+- Staff Assignment: Landlords/Admins can assign designated `maintenance_staff` members to active requests.
+- Tenant Rating & Review system for resolved maintenance tickets.
+
+### 💬 5. Real-Time Messaging & Notifications
+- Direct 1-on-1 WebSocket chat rooms powered by **Socket.IO**.
+- Instant delivery acknowledgements (`new_message`, `message_sent`, `messages_read`).
+- Real-time in-app notification center for booking status changes, tenant requests, and maintenance updates.
+
+### 📊 6. Admin & Analytics Dashboard
+- Role-scoped KPI widgets showing property count, active bookings, open issues, and system compliance rates.
+- Admin management control center for approving/rejecting user role escalation requests.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|---|---|
-| **Frontend Framework** | React 19 (Vite 8) |
-| **UI Styling** | Tailwind CSS v4 (`@tailwindcss/vite`) |
-| **Animations** | Framer Motion 12 |
-| **Icons** | Lucide React |
-| **Forms** | React Hook Form + Zod + `@hookform/resolvers` |
-| **Routing** | React Router DOM v7 |
-| **HTTP Client** | Axios (with auto-refresh interceptor) |
-| **Real-Time (Client)** | Socket.IO Client v4 |
-| **Backend Framework** | Express 5 |
-| **Database** | MongoDB (Mongoose 9) |
-| **Caching & Rate Limiting** | Redis v5 (Upstash / Redis Cloud) |
-| **Real-Time (Server)** | Socket.IO v4 |
-| **Authentication** | JWT (`jsonwebtoken`), bcrypt |
-| **Google OAuth** | `google-auth-library` OAuth2Client |
-| **Email** | Nodemailer (Gmail SMTP / custom SMTP) |
-| **File Uploads** | Multer (memory storage) → Cloudinary v2 |
-| **Input Validation** | `validator` (backend) |
-| **Package Manager** | npm |
-| **Dev Server** | Nodemon (backend), Vite HMR (frontend) |
+### Frontend Architecture
+| Technology | Version | Purpose |
+|---|---|---|
+| **React** | `19.2.6` | UI Component Framework |
+| **Vite** | `8.0.12` | Next-Generation Frontend Tooling & Bundler |
+| **React Router DOM** | `7.16.0` | Client-Side Routing |
+| **Tailwind CSS** | `4.3.0` | Utility-First Styling Framework |
+| **Framer Motion** | `12.42.2` | Complex UI Animations & Gesture Engine |
+| **Lucide React** | `1.17.0` | Modern SVG Icon Suite |
+| **Axios** | `1.16.1` | HTTP Client with Automated Refresh Interceptors |
+| **Socket.IO Client** | `4.8.3` | Real-Time Client WebSocket Library |
+| **React Hook Form** | `7.76.1` | Performant Form State Management |
+| **Zod** | `4.4.3` | Schema Validation |
+
+### Backend Architecture
+| Technology | Version | Purpose |
+|---|---|---|
+| **Node.js** | `≥ 18.0.0` | JavaScript Runtime Environment |
+| **Express.js** | `5.2.1` | Enterprise Web Framework |
+| **MongoDB & Mongoose** | `9.6.2` | NoSQL Database & ODM Modeling |
+| **Redis** | `5.12.1` | High-Speed In-Memory Cache & Sliding-Window Rate Limiter |
+| **Socket.IO** | `4.8.3` | Bidirectional Real-Time Socket Server |
+| **JSONWebToken** | `9.0.3` | Stateless Authentication Tokens |
+| **Bcrypt.js** | `3.0.3` | Hashing Engine for Credentials |
+| **Cloudinary** | `2.10.0` | Cloud Media Storage Service |
+| **Nodemailer** | `9.0.3` | Transactional Email Dispatcher |
+| **Google Auth Library** | `10.7.0` | OAuth Token Verification |
+| **Helmet** | `8.3.0` | HTTP Header Security Hardening |
+| **Cors** | `2.8.6` | Cross-Origin Resource Sharing |
+| **Cookie Parser** | `1.4.7` | HTTP Cookie Parsing Middleware |
 
 ---
 
-## 🏗️ Architecture
-
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                      CLIENT  (React + Vite)                        │
-│  Browser → Axios (HTTP + cookies) → /api/* endpoints              │
-│  Browser ↔ Socket.IO Client ← Real-time events                   │
-└───────────────────────┬───────────────────────────────────────────┘
-                        │ HTTP / WebSocket
-┌───────────────────────▼───────────────────────────────────────────┐
-│                  SERVER  (Node + Express 5)                         │
-│  Routes → Middleware (JWT + Redis blacklist check) → Controllers   │
-│  Socket.IO Server: rooms per userId, notification/message events   │
-└──────────┬────────────────────────────────┬───────────────────────┘
-           │                                │
-  ┌────────▼────────┐   ┌──────────────┐  ┌─────────────────┐
-  │    MongoDB       │   │    Redis     │  │   Cloudinary    │
-  │  (7 Mongoose    │   │  Cache +     │  │  Property &     │
-  │   models)       │   │  RateLimit + │  │  Maintenance    │
-  └─────────────────┘   │  Blacklist   │  │  images         │
-                        └──────┬───────┘  └─────────────────┘
-                               │
-                      ┌────────▼────────┐
-                      │   Nodemailer    │
-                      │  (OTP / Reset) │
-                      └─────────────────┘
-```
-
-### Request Flow (Authenticated)
-1. Frontend calls API via `axiosInstance` (cookies carried automatically)
-2. Auth middleware verifies JWT from `accessToken` cookie
-3. Redis blacklist checked — rejected if token was explicitly logged out
-4. `req.user` attached from MongoDB
-5. Controller runs business logic, reads/writes Redis cache where applicable
-6. Socket.IO pushes real-time events to specific user rooms
-7. Response returned
-
-### Auto Token Refresh
-```
-Request → 401  →  Axios interceptor  →  POST /auth/refresh
-       →  new accessToken cookie  →  retry original request
-       →  if refresh fails → clear localStorage → redirect /login
-```
-
----
-
-## 📁 Project Structure
+## 📁 Folder Structure
 
 ```
 Rentora/
+├── backend/
+│   ├── src/
+│   │   ├── config/                # Environment & Infrastructure Connections
+│   │   │   ├── cloudinary.js      # Cloudinary API Configuration
+│   │   │   ├── db.js              # Mongoose MongoDB Connection Handler
+│   │   │   ├── env.js             # Centralized Process Environment Schema
+│   │   │   ├── nodemailer.js      # SMTP Transport Configuration
+│   │   │   ├── redis.js           # Redis v5 Standalone Client Wrapper
+│   │   │   └── socket.js          # Socket.IO Gateway Server Setup
+│   │   ├── controllers/           # HTTP Request & Business Logic Controllers
+│   │   │   ├── amenityController.js       # Amenity CRUD & Operating Hour Logic
+│   │   │   ├── authController.js          # Registration, Login, Google OAuth, Refresh & OTP
+│   │   │   ├── bookingController.js       # Slot Overlap Validation & Booking Lifecycle
+│   │   │   ├── dashboardController.js     # Role-Aware Metric Generation & Notifications
+│   │   │   ├── maintenanceController.js   # Ticket Lifecycle, Staff Assign & SLA KPI API
+│   │   │   ├── messageController.js       # Chat History & Contact List Retrieval
+│   │   │   ├── propertyController.js      # Property Search, Filters, Tenant Applications
+│   │   │   └── userController.js          # Role Escalation & Profile Management
+│   │   ├── middleware/            # Custom Express Middleware Pipeline
+│   │   │   ├── adminMiddleware.js         # Strict Admin Role Authorization Guard
+│   │   │   ├── landlordMiddleware.js      # Landlord & Admin Authorization Guard
+│   │   │   ├── rateLimiter.js             # Atomic Redis ZSET Sliding Window Rate Limiter
+│   │   │   ├── tenantMiddleware.js        # Universal Auth & Blacklist Verification Guard
+│   │   │   └── uploadMiddleware.js        # Multer File Interceptor Configuration
+│   │   ├── models/                # Mongoose Database Schemas & Models
+│   │   │   ├── amenity.js                 # Amenity Collection Schema
+│   │   │   ├── booking.js                 # Booking Collection Schema
+│   │   │   ├── maintainanceRequest.js     # Maintenance Ticket & Review Schema
+│   │   │   ├── message.js                 # Socket Chat Message Schema
+│   │   │   ├── notification.js            # User Notification Collection Schema
+│   │   │   ├── property.js                # Property Listing Schema
+│   │   │   └── user.js                    # User Identity & Role Schema
+│   │   ├── routes/                # Express Route Declarations
+│   │   │   ├── amenities.js               # /api/amenities Routes
+│   │   │   ├── auth.js                    # /api/auth Routes with Rate Limiting
+│   │   │   ├── bookings.js                # /api/bookings Routes
+│   │   │   ├── dashboard.js               # /api/dashboard Routes
+│   │   │   ├── maintenance.js             # /api/maintenance Routes
+│   │   │   ├── messages.js                # /api/messages Routes
+│   │   │   ├── properties.js              # /api/properties Routes
+│   │   │   └── users.js                   # /api/users Routes
+│   │   ├── services/              # Shared Service Utilities
+│   │   │   └── authService.js             # JWT Generation, Cookie Management & Token Invalidation
+│   │   ├── socket/                # Socket.IO Event Handlers
+│   │   │   └── socketHandler.js           # Room Connection, Message Relay & Read Receipts
+│   │   ├── utilities/             # Helper Utilities
+│   │   │   ├── otpService.js              # Redis OTP Generation & Email Dispatch
+│   │   │   └── validatorUser.js           # Input Payload Validator Utility
+│   │   ├── seed.js                # Database Seeding Script with Mock Data
+│   │   └── server.js              # HTTP & Socket Server Entry Point
+│   ├── .env                       # Backend Environment Variables
+│   └── package.json               # Backend NPM Dependencies & Scripts
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx                # Root router — all 16 routes defined here
-│   │   ├── index.css              # Global styles & glassmorphism tokens
-│   │   ├── components/
-│   │   │   ├── Layout.jsx         # Shell: sidebar + topbar + Socket.IO listener
-│   │   │   ├── LeftPanel.jsx      # Messaging conversation list
-│   │   │   ├── GoogleAuth.jsx     # Google Sign-In button
-│   │   │   └── ui.jsx             # Avatar, Modal, Toast, GradientButton
-│   │   ├── pages/
-│   │   │   ├── Login.jsx
-│   │   │   ├── Register.jsx
-│   │   │   ├── VerifyEmail.jsx
-│   │   │   ├── ForgotPassword.jsx
-│   │   │   ├── Dashboard.jsx      # KPI widgets, role-aware stats
-│   │   │   ├── FindProperties.jsx # Browse + My Rentals mode
-│   │   │   ├── Properties.jsx     # Landlord CRUD
-│   │   │   ├── Maintenance.jsx    # Request list + detail modal
-│   │   │   ├── Amenities.jsx      # Amenity management + booking
-│   │   │   ├── Bookings.jsx       # Booking history + management
-│   │   │   ├── Messages.jsx       # Real-time chat
-│   │   │   ├── Notifications.jsx  # Full notification history
-│   │   │   ├── Profile.jsx
-│   │   │   ├── Settings.jsx       # Preferences + change password
-│   │   │   └── Admin.jsx          # Admin-only KPI panel
-│   │   └── utility/
-│   │       └── axiosInstance.js   # Axios + auto-refresh interceptor
-│   ├── index.html                 # Loads Google GSI script
-│   ├── vite.config.js
-│   └── package.json
-│
-└── backend/
-    └── src/
-        ├── server.js              # Express, Socket.IO, MongoDB, Redis bootstrap
-        ├── config/
-        │   ├── db.js              # Mongoose connect
-        │   ├── redis.js           # Redis client + reconnect strategy
-        │   ├── cloudinary.js      # Cloudinary v2 config
-        │   └── nodemailer.js      # SMTP transporter
-        ├── models/
-        │   ├── user.js            # Roles, googleId, isVerified, requestedRole
-        │   ├── property.js        # Types, tenants, pricing, images
-        │   ├── amenity.js         # Hours (int + legacy Date), capacity, price
-        │   ├── maintainanceRequest.js  # Status, assignedStaff, SLA fields
-        │   ├── booking.js         # 6-state status, amenity + property booking
-        │   ├── notification.js    # 14 event types
-        │   └── message.js         # Sender, receiver, text, read
-        ├── controllers/
-        │   ├── userAuthentication.js   # register/login/OTP/Google/JWT
-        │   ├── propertyManagement.js   # CRUD + tenant management + pagination
-        │   ├── bookingManagement.js    # Booking lifecycle + check-in/out
-        │   ├── maintenanceController.js # CRUD + assignStaff + KPI
-        │   ├── userAmenity.js          # Amenity CRUD
-        │   ├── dashboardController.js  # Role-scoped data + Redis cache
-        │   ├── messageController.js    # Message history REST
-        │   └── userController.js      # User list, role request, picture upload
-        ├── routes/
-        │   ├── auth.js            # 3-tier rate limiting applied here
-        │   ├── properties.js
-        │   ├── amenities.js
-        │   ├── bookings.js
-        │   ├── maintenance.js
-        │   ├── dashboard.js
-        │   ├── messages.js
-        │   └── users.js
-        ├── middleware/
-        │   ├── tenantmiddleware.js    # tenant + landlord + admin
-        │   ├── landlordmiddleware.js  # landlord + admin
-        │   ├── adminmiddleware.js     # admin only
-        │   ├── rateLimiter.js         # Redis sliding-window ZSET limiter
-        │   └── upload.js              # Multer memory storage
-        └── utilities/
-            ├── otpService.js          # OTP gen, Redis TTL, email dispatch
-            └── validatorUser.js       # Registration input validation
+│   │   ├── components/            # Shared UI Components & Layouts
+│   │   │   ├── GoogleAuth.jsx             # Google OAuth Button Component
+│   │   │   ├── Layout.jsx                 # Main Shell with Responsive Sidebar & Top Navigation
+│   │   │   └── LeftPanel.jsx              # Navigation Menu Sidebar Link Panel
+│   │   ├── constants/             # Application Constants
+│   │   ├── hooks/                 # Custom React Hooks
+│   │   │   └── useAuth.js                 # User Session Hydration Hook
+│   │   ├── pages/                 # Full Page View Components
+│   │   │   ├── Admin.jsx                  # System Governance & SLA KPI Command Center
+│   │   │   ├── Amenities.jsx              # Amenity Catalog & Booking Modal
+│   │   │   ├── Bookings.jsx               # User Booking Manager & Check-In Control
+│   │   │   ├── Dashboard.jsx              # Role-Based Analytics & Animated KPI Cards
+│   │   │   ├── FindProperties.jsx         # Property Marketplace & Advanced Search
+│   │   │   ├── ForgotPassword.jsx         # Password Reset & OTP Submission Flow
+│   │   │   ├── Login.jsx                  # User Authentication Screen
+│   │   │   ├── Maintenance.jsx            # Maintenance Request Desk & Staff Assignment
+│   │   │   ├── Messages.jsx               # Real-Time Chat Workspace
+│   │   │   ├── Notifications.jsx          # User Notification Feed
+│   │   │   ├── Profile.jsx                # Profile Customization & Picture Upload
+│   │   │   ├── Properties.jsx             # Landlord Property Listing Workbench
+│   │   │   ├── Register.jsx               # Account Registration Page
+│   │   │   ├── Settings.jsx               # Preference Settings Workbench
+│   │   │   └── VerifyEmail.jsx            # Account OTP Email Activation Page
+│   │   ├── services/              # Frontend API Integration Services
+│   │   │   ├── amenityService.js          # Amenity API Wrapper
+│   │   │   ├── authService.js             # Authentication API Wrapper
+│   │   │   ├── bookingService.js          # Booking API Wrapper
+│   │   │   ├── dashboardService.js        # Dashboard API Wrapper
+│   │   │   ├── maintenanceService.js      # Maintenance API Wrapper
+│   │   │   ├── messageService.js          # Chat API Wrapper
+│   │   │   ├── propertyService.js         # Property Management API Wrapper
+│   │   │   └── userService.js             # User & Role API Wrapper
+│   │   ├── utility/               # Helper Functions
+│   │   ├── App.jsx                # Client Route Declarations & Landing Screen
+│   │   ├── index.css              # Custom Tailwind CSS v4 Theme Rules
+│   │   └── main.jsx               # React DOM Entrypoint
+│   ├── .env                       # Frontend Environment File
+│   ├── package.json               # Frontend NPM Dependencies & Scripts
+│   └── vite.config.js             # Vite Build Settings & Plugins
+├── docs/                          # Project Documentation & Assets
+│   └── screenshots/               # Application UI Screenshots
+├── Readme.md                      # Complete Single Source of Truth README
+└── summary.md                     # Post-Implementation Project Log
 ```
 
 ---
 
-## 🚀 Installation
+## 🏗️ Project Architecture
 
-### Prerequisites
+Rentora follows an enterprise **Layered Service-Oriented Architecture** with decoupling between HTTP Request Handling, Business Logic Processing, In-Memory Caching, Persistent Storage, and Socket Handlers.
 
-| Tool | Version |
-|---|---|
-| Node.js | ≥ 18.x |
-| npm | ≥ 9.x |
-| MongoDB | Atlas or local ≥ 6.x |
-| Redis | Upstash / Redis Cloud / local |
-| Cloudinary Account | For image uploads |
-| Google Cloud Project | For OAuth 2.0 (optional for dev) |
-| Gmail Account | For Nodemailer SMTP |
-
-### 1 · Clone
-
-```bash
-git clone https://github.com/your-username/rentora.git
-cd rentora
+```mermaid
+graph TD
+    Client[📱 React 19 Single Page Application] -->|HTTP REST / Cookies| RateLimiter[🛡️ Redis Sliding Window Limiter]
+    Client <-->|WebSocket ws://| SocketServer[⚡ Socket.IO Gateway Server]
+    
+    RateLimiter --> ExpressApp[⚙️ Express 5 Framework Server]
+    
+    subgraph Express Middleware Pipeline
+        ExpressApp --> AuthGuard[🔐 Dual-Token Auth Middleware]
+        AuthGuard --> RoleGuard[👑 RBAC Authorization Guard]
+    end
+    
+    subgraph Controllers & Business Layer
+        RoleGuard --> AuthCtrl[Authentication Controller]
+        RoleGuard --> PropCtrl[Property Controller]
+        RoleGuard --> BookCtrl[Booking Controller]
+        RoleGuard --> MaintCtrl[Maintenance & SLA Controller]
+        RoleGuard --> DashCtrl[Dashboard & KPI Controller]
+    end
+    
+    subgraph Data & Caching Services
+        AuthCtrl & PropCtrl & BookCtrl & MaintCtrl & DashCtrl -->|Query / Cache| Redis[🔴 Redis In-Memory Store]
+        AuthCtrl & PropCtrl & BookCtrl & MaintCtrl & DashCtrl -->|Persist Data| MongoDB[(🍃 MongoDB Database)]
+        PropCtrl & MaintCtrl -->|Upload Media| Cloudinary[☁️ Cloudinary CDN]
+        AuthCtrl -->|Send Email OTP| Nodemailer[📧 Nodemailer SMTP]
+    end
+    
+    SocketServer <-->|Broadcast Events| Client
+    SocketServer -->|Audit Messages| MongoDB
 ```
 
-### 2 · Backend
+### Component Layer Architecture
 
+```mermaid
+graph LR
+    subgraph Frontend Client Architecture
+        App[App.jsx Router] --> AuthModule[Auth Context & Interceptor]
+        App --> LayoutShell[Layout.jsx Shell]
+        LayoutShell --> Pages[Dashboard / Properties / Maintenance / Bookings / Chat]
+        Pages --> APIServices[Axios API Client Services]
+        Pages --> SocketClient[Socket.IO Client Instance]
+    end
+```
+
+---
+
+## 🔐 Authentication & Security Flow
+
+Rentora implements an enterprise-grade security strategy combining **Dual-Token Cookie Auth**, **Google OAuth 2.0 Verification**, **Redis Blacklisting**, and **Sliding Window Rate Limiting**.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client Browser
+    participant API as Express API Server
+    participant Redis as Redis Cache Store
+    participant DB as MongoDB Database
+    
+    User->>API: POST /api/auth/login { email, password }
+    API->>Redis: Check Sliding Window Limit (ZSET)
+    alt Rate Limit Exceeded (> 5 req/15m)
+        Redis-->>User: 429 Too Many Requests (Retry-After)
+    else Limit OK
+        API->>DB: Query User by Email
+        DB-->>API: User Document
+        API->>API: Verify Password Hash (Bcrypt)
+        API->>API: Generate Access Token (15m) & Refresh Token (7d)
+        API-->>User: 200 OK + Set-Cookie (accessToken, refreshToken HttpOnly)
+    end
+
+    Note over User, API: Authenticated Request Flow
+    User->>API: GET /api/properties (Includes Cookies)
+    API->>Redis: Check if Access Token in Blacklist
+    alt Token Blacklisted
+        Redis-->>User: 401 Unauthorized
+    else Token Valid
+        API->>DB: Fetch Properties
+        DB-->>API: Properties Data
+        API-->>User: 200 OK (Properties List)
+    end
+    
+    Note over User, API: Logout Flow
+    User->>API: POST /api/auth/logout
+    API->>Redis: SET blacklist:accessToken (TTL 15m)
+    API->>Redis: SET blacklist:refreshToken (TTL 7d)
+    API-->>User: 200 OK + Clear-Cookie
+```
+
+---
+
+## 💾 Database Design
+
+Rentora relies on MongoDB for flexible, high-performance NoSQL document storage. Data models enforce strict schema validation, indexes, and virtual fields.
+
+```mermaid
+erDiagram
+    USER ||--o{ PROPERTY : "owns (landlord)"
+    USER ||--o{ PROPERTY : "rents (tenant)"
+    USER ||--o{ BOOKING : "creates"
+    USER ||--o{ MAINTENANCE_REQUEST : "submits"
+    USER ||--o{ MAINTENANCE_REQUEST : "assigned to (staff)"
+    USER ||--o{ NOTIFICATION : "receives"
+    USER ||--o{ MESSAGE : "sends/receives"
+    
+    PROPERTY ||--o{ AMENITY : "contains"
+    PROPERTY ||--o{ BOOKING : "has"
+    PROPERTY ||--o{ MAINTENANCE_REQUEST : "logs"
+    
+    AMENITY ||--o{ BOOKING : "reserved in"
+    
+    USER {
+        ObjectId _id PK
+        string firstname
+        string lastname
+        string email UK
+        string password
+        string googleId UK
+        string role "tenant | landlord | admin | maintenance_staff"
+        string requestedRole
+        string phoneNumber
+        string profilePicture
+        boolean isVerified
+        ObjectId[] myProperties FK
+        ObjectId[] myTenants FK
+    }
+    
+    PROPERTY {
+        ObjectId _id PK
+        string propertyName
+        string propertyType "gym | house | villa | swimmingpool | commercial | other"
+        string propertyAddress
+        string city
+        string state
+        number pincode
+        string country
+        ObjectId owner FK
+        ObjectId[] tenants FK
+        ObjectId[] pendingTenants FK
+        string[] images
+        string description
+        number capacity
+        string[] amenities
+        number pricePerHour
+        string rentType "hourly | monthly"
+        number openingHour
+        number closingHour
+        number securityDeposit
+        number ratings
+    }
+    
+    AMENITY {
+        ObjectId _id PK
+        string name
+        string description
+        string category
+        ObjectId property FK
+        number capacity
+        number pricePerHour
+        number openingHour
+        number closingHour
+        boolean isActive
+        string[] images
+        number slotDuration
+    }
+
+    BOOKING {
+        ObjectId _id PK
+        ObjectId user FK
+        ObjectId property FK
+        ObjectId amenity FK
+        date bookingStartTime
+        date bookingEndTime
+        date checkInTime
+        date checkOutTime
+        string paymentStatus "pending | paid | failed"
+        number totalAmount
+        string status "pending | booked | checked_in | completed | cancelled | cancellation_requested"
+    }
+
+    MAINTENANCE_REQUEST {
+        ObjectId _id PK
+        ObjectId user FK
+        ObjectId property FK
+        string title
+        string description
+        string category
+        string status "pending | assigned | in_progress | resolved | cancelled"
+        ObjectId assignedStaff FK
+        string[] images
+        date resolvedAt
+        ObjectId resolvedBy FK
+        string resolutionNotes
+        string feedback
+        number rating
+    }
+
+    NOTIFICATION {
+        ObjectId _id PK
+        ObjectId recipient FK
+        string type
+        string title
+        string message
+        ObjectId relatedProperty FK
+        ObjectId relatedUser FK
+        ObjectId relatedBooking FK
+        string status "unread | read"
+    }
+
+    MESSAGE {
+        ObjectId _id PK
+        ObjectId sender FK
+        ObjectId receiver FK
+        string text
+        string image
+        boolean read
+    }
+```
+
+---
+
+## 📡 API Documentation
+
+### 🔑 Authentication Module (`/api/auth`)
+
+| Method | Endpoint | Auth | Rate Limit | Description | Status Codes |
+|---|---|---|---|---|---|
+| `POST` | `/api/auth/register` | Public | Strict (5/15m) | Register account & send verification OTP | `201`, `400`, `429` |
+| `POST` | `/api/auth/verify-otp` | Public | OTP (10/15m) | Verify email OTP & set auth cookies | `200`, `400`, `429` |
+| `POST` | `/api/auth/resend-otp` | Public | OTP (10/15m) | Resend email OTP code | `200`, `400`, `429` |
+| `POST` | `/api/auth/login` | Public | Strict (5/15m) | Authenticate user & issue token cookies | `200`, `401`, `429` |
+| `POST` | `/api/auth/google-login` | Public | Strict (5/15m) | Verify Google OAuth token & issue session | `200`, `401`, `429` |
+| `POST` | `/api/auth/google-register` | Public | Strict (5/15m) | Register via Google OAuth credentials | `201`, `400`, `429` |
+| `POST` | `/api/auth/refresh` | Public | Refresh (30/1m) | Issue fresh access token from refresh cookie | `200`, `401`, `429` |
+| `POST` | `/api/auth/logout` | Authenticated | None | Blacklist active tokens in Redis & clear cookies | `200`, `401` |
+| `POST` | `/api/auth/forgot-password` | Public | Strict (5/15m) | Dispatch password reset OTP to email | `200`, `404`, `429` |
+| `POST` | `/api/auth/reset-password` | Public | Strict (5/15m) | Verify OTP & update user password | `200`, `400`, `429` |
+| `PATCH` | `/api/auth/profile` | Auth (`tenant`+) | None | Update user profile fields | `200`, `400`, `401` |
+| `PATCH` | `/api/auth/change-password` | Auth (`tenant`+) | None | Update password with current password validation | `200`, `400`, `401` |
+
+### 🏠 Property Module (`/api/properties`)
+
+| Method | Endpoint | Auth | Description | Status Codes |
+|---|---|---|---|---|
+| `GET` | `/api/properties` | Auth (`tenant`+) | Fetch paginated properties with filters (`page`, `limit`, `city`, `minPrice`) | `200`, `401` |
+| `GET` | `/api/properties/:propertyId` | Auth (`tenant`+) | Get detailed property specs by ID | `200`, `404` |
+| `POST` | `/api/properties` | Landlord/Admin | Create new property listing with images (`multer`) | `201`, `400` |
+| `PATCH` | `/api/properties/:propertyId` | Landlord/Admin | Update property specs | `200`, `403` |
+| `DELETE` | `/api/properties/:propertyId` | Landlord/Admin | Remove property listing & invalidate Redis cache | `200`, `403` |
+| `GET` | `/api/properties/pending-requests` | Landlord/Admin | Get tenant applications for owned properties | `200`, `401` |
+| `POST` | `/api/properties/:propertyId/tenants` | Tenant | Submit application to join property | `200`, `400` |
+| `DELETE` | `/api/properties/:propertyId/tenants/:tenantId` | Auth | Remove tenant from property | `200`, `403` |
+| `POST` | `/api/properties/:propertyId/tenants/:tenantId/accept` | Landlord/Admin | Accept tenant request into property | `200`, `404` |
+| `POST` | `/api/properties/:propertyId/tenants/:tenantId/reject` | Landlord/Admin | Reject tenant application request | `200`, `404` |
+
+### 🏋️ Amenity Module (`/api/amenities`)
+
+| Method | Endpoint | Auth | Description | Status Codes |
+|---|---|---|---|---|
+| `GET` | `/api/amenities` | Auth (`tenant`+) | List active amenities (optional filter `?propertyId=`) | `200`, `401` |
+| `GET` | `/api/amenities/:amenityId` | Auth (`tenant`+) | Retrieve specific amenity details | `200`, `404` |
+| `POST` | `/api/amenities` | Landlord/Admin | Add amenity facility to property | `201`, `400` |
+| `PATCH` | `/api/amenities/:amenityId` | Landlord/Admin | Update amenity hours, price, or capacity | `200`, `403` |
+| `DELETE` | `/api/amenities/:amenityId` | Landlord/Admin | Delete amenity facility | `200`, `403` |
+
+### 📅 Booking Module (`/api/bookings`)
+
+| Method | Endpoint | Auth | Description | Status Codes |
+|---|---|---|---|---|
+| `POST` | `/api/bookings/book` | Tenant | Reserve hourly amenity slot (with overlap check) | `201`, `400` |
+| `POST` | `/api/bookings/property/book` | Tenant | Submit booking request for property rental | `201`, `400` |
+| `GET` | `/api/bookings/my` | Tenant | Retrieve user's paginated booking history | `200`, `401` |
+| `GET` | `/api/bookings/:bookingId` | Tenant | Get single booking details | `200`, `404` |
+| `GET` | `/api/bookings/amenity/:amenityId/availability` | Tenant | Query available hourly time slots for date | `200`, `400` |
+| `PUT` | `/api/bookings/:bookingId/approve` | Landlord/Admin | Approve pending rental booking | `200`, `403` |
+| `PUT` | `/api/bookings/:bookingId/reject` | Landlord/Admin | Reject rental booking request | `200`, `403` |
+| `POST` | `/api/bookings/:bookingId/checkin` | Tenant | Process active check-in timestamp | `200`, `400` |
+| `POST` | `/api/bookings/:bookingId/checkout` | Tenant | Process active check-out timestamp | `200`, `400` |
+| `DELETE` | `/api/bookings/:bookingId` | Tenant | Cancel booking or trigger cancellation request | `200`, `400` |
+
+### 🛠️ Maintenance & KPI Module (`/api/maintenance`)
+
+| Method | Endpoint | Auth | Description | Status Codes |
+|---|---|---|---|---|
+| `GET` | `/api/maintenance/kpi` | Auth (`tenant`+) | Compute SLA metrics (Avg Resolution Time, Completion Rate %) | `200`, `401` |
+| `POST` | `/api/maintenance` | Tenant | Create maintenance issue with image attachment | `201`, `400` |
+| `GET` | `/api/maintenance` | Auth (`tenant`+) | List tickets filtered by caller role scope | `200`, `401` |
+| `PUT` | `/api/maintenance/:requestId/status` | Landlord/Admin | Transition ticket status (`assigned`, `in_progress`, `resolved`) | `200`, `400` |
+| `PUT` | `/api/maintenance/:requestId/assign` | Landlord/Admin | Assign designated staff member ID to ticket | `200`, `404` |
+| `POST` | `/api/maintenance/:id/review` | Tenant | Submit performance rating (1-5★) & feedback | `200`, `400` |
+
+---
+
+## ⚡ Socket.IO Events Reference
+
+Rentora uses WebSockets for low-latency bidirectional state updates.
+
+### Connection & Room Protocol
+Upon establishing connection, clients MUST emit `register` with their `userId` to join their private user room.
+
+```mermaid
+sequenceDiagram
+    participant Client as Socket Client
+    participant Server as Socket Server Gateway
+    participant Peer as Receiver Room (User ID)
+
+    Client->>Server: socket.emit("register", userId)
+    Note over Server: Client joins socket room [userId]
+    
+    Client->>Server: socket.emit("send_message", { sender, receiver, text, image })
+    Note over Server: Message persisted to MongoDB
+    Server-->>Peer: socket.to(receiver).emit("new_message", messageDoc)
+    Server-->>Client: socket.to(sender).emit("message_sent", messageDoc)
+    
+    Peer->>Server: socket.emit("mark_read", { sender, receiver })
+    Server-->>Client: socket.to(sender).emit("messages_read", { reader: receiver })
+```
+
+### Event Registry
+
+| Event Name | Direction | Payload Structure | Purpose |
+|---|---|---|---|
+| `register` | Client $\rightarrow$ Server | `userId: string` | Joins private room identified by User ID |
+| `send_message` | Client $\rightarrow$ Server | `{ sender, receiver, text, image }` | Emits chat message, saves to DB & relays |
+| `new_message` | Server $\rightarrow$ Client | `Message Document` | Delivered to recipient room upon chat dispatch |
+| `message_sent` | Server $\rightarrow$ Client | `Message Document` | Acknowledgment delivered back to sender |
+| `mark_read` | Client $\rightarrow$ Server | `{ sender, receiver }` | Updates unread messages status to `true` |
+| `messages_read` | Server $\rightarrow$ Client | `{ reader: string }` | Emits read receipts back to original message author |
+
+---
+
+## ⚙️ Environment Variables
+
+### Backend `.env` Reference
+
+| Variable Name | Required | Description | Default Value | Example Value |
+|---|---|---|---|---|
+| `PORT` | No | Express server listening port | `5000` | `5000` |
+| `DB_CONNECT_STRING` | **Yes** | MongoDB Connection URI | - | `mongodb+srv://user:pass@cluster.mongodb.net/rentora` |
+| `JWT_ACCESS_SECRET` | **Yes** | Secret signature key for Access Tokens | - | `super_secret_access_key_32_chars` |
+| `JWT_REFRESH_SECRET` | **Yes** | Secret signature key for Refresh Tokens | - | `super_secret_refresh_key_32_chars` |
+| `REDIS_HOST` | **Yes** | Host address of Redis instance | - | `127.0.0.1` or `redis-123.c1.region.redislabs.com` |
+| `REDIS_PORT` | **Yes** | Port number of Redis instance | - | `6379` or `18920` |
+| `REDIS_PASS` | No | Authentication password for Redis Cloud | - | `AuthPassword123` |
+| `GOOGLE_CLIENT_ID` | **Yes** | Google OAuth 2.0 Web Client ID | - | `123456789-abc.apps.googleusercontent.com` |
+| `EMAIL_SERVICE` | No | Nodemailer transport email provider | `gmail` | `gmail` |
+| `EMAIL_USER` | **Yes** | Sender email address for OTP dispatch | - | `notifications@rentora.com` |
+| `EMAIL_PASS` | **Yes** | Email account App Password | - | `abcd efgh ijkl mnop` |
+| `CLOUDINARY_NAME` | **Yes** | Cloudinary Cloud Name identifier | - | `rentora-cloud` |
+| `CLOUDINARY_KEY` | **Yes** | Cloudinary API Public Key | - | `987654321098765` |
+| `CLOUDINARY_SECRET` | **Yes** | Cloudinary API Private Secret | - | `aBcDeFgHiJkLmNoPqRsTuVwXyZ` |
+| `CLIENT_ORIGIN` | No | CORS allowed client application origin | `http://localhost:5173` | `http://localhost:5173` |
+
+### Frontend `.env` Reference
+
+| Variable Name | Required | Description | Default Value | Example Value |
+|---|---|---|---|---|
+| `VITE_API_BASE_URL` | **Yes** | Base URL for REST API requests | `http://localhost:5000/api` | `http://localhost:5000/api` |
+| `VITE_SOCKET_URL` | **Yes** | Target WebSocket server connection URL | `http://localhost:5000` | `http://localhost:5000` |
+
+---
+
+## 📥 Installation & Setup Guide
+
+### 📋 Prerequisites
+- **Node.js**: `v18.0.0` or higher
+- **NPM**: `v9.0.0` or higher
+- **MongoDB**: Local instance running on `27017` or **MongoDB Atlas** cluster
+- **Redis**: Local server running on `6379` or **Redis Cloud** database instance
+
+---
+
+### 1️⃣ Clone Repository & Setup Structure
 ```bash
+git clone https://github.com/RIshabh231singh-shr/Rentora.git
+cd Rentora
+```
+
+---
+
+### 2️⃣ Backend Installation
+```bash
+# Navigate to backend directory
 cd backend
+
+# Install dependencies
 npm install
-# Create backend/.env with the variables listed below
-npm run dev        # nodemon — hot reload
-# npm start        # production
+
+# Create environment configuration file
+cp .env.example .env   # Or create .env manually matching the schema above
 ```
 
-Backend starts at **`http://localhost:5000`**.
+#### Populate `backend/.env`:
+```env
+PORT=5000
+DB_CONNECT_STRING=mongodb://127.0.0.1:27017/rentora
+JWT_ACCESS_SECRET=rentora_access_secret_key_2026_super_secure
+JWT_REFRESH_SECRET=rentora_refresh_secret_key_2026_super_secure
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASS=
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+EMAIL_SERVICE=gmail
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
+CLOUDINARY_NAME=your_cloudinary_name
+CLOUDINARY_KEY=your_cloudinary_key
+CLOUDINARY_SECRET=your_cloudinary_secret
+CLIENT_ORIGIN=http://localhost:5173
+```
 
-### 3 · Frontend
-
+#### Run Database Seeding:
 ```bash
-cd frontend
-npm install
-# Create frontend/.env with VITE_GOOGLE_CLIENT_ID
+# Seed initial admin, landlord, tenant accounts & mock properties
+npm run seed
+```
+
+#### Launch Backend Server:
+```bash
+# Start in development mode (using nodemon)
 npm run dev
 ```
 
-Frontend starts at **`http://localhost:5173`**.
-
 ---
 
-## 🔑 Environment Variables
-
-### `backend/.env`
-
-| Variable | Description | Required |
-|---|---|:---:|
-| `PORT` | Express port (default `5000`) | No |
-| `DB_CONNECT_STRING` | MongoDB Atlas URI | ✅ Yes |
-| `JWT_ACCESS_SECRET` | Access token secret (15 min TTL) | ✅ Yes |
-| `JWT_REFRESH_SECRET` | Refresh token secret (7 day TTL) | ✅ Yes |
-| `REDIS_PASS` | Redis password | ✅ Yes |
-| `REDIS_HOST` | Redis hostname | ✅ Yes |
-| `REDIS_PORT` | Redis port | ✅ Yes |
-| `GOOGLE_CLIENT_ID` | Google OAuth2 Client ID | ✅ Yes |
-| `EMAIL_SERVICE` | e.g. `gmail` (used if `EMAIL_HOST` not set) | No |
-| `EMAIL_HOST` | SMTP host for custom SMTP | No |
-| `EMAIL_PORT` | SMTP port | No |
-| `EMAIL_SECURE` | `true` for port 465 | No |
-| `EMAIL_USER` | SMTP username / Gmail address | ✅ Yes |
-| `EMAIL_PASS` | SMTP password / Gmail App Password | ✅ Yes |
-| `CLOUDINARY_NAME` | Cloudinary cloud name | ✅ Yes |
-| `CLOUDINARY_KEY` | Cloudinary API key | ✅ Yes |
-| `CLOUDINARY_SECRET` | Cloudinary API secret | ✅ Yes |
-
-> ⚠️ Both `.env` files are gitignored. Never commit real credentials.
-
-### `frontend/.env`
-
-| Variable | Description | Required |
-|---|---|:---:|
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth2 client ID (GSI button) | ✅ Yes |
-
----
-
-## 📡 API Overview
-
-All routes mounted at `/api/` (also mirrored without `/api` prefix for compatibility).
-
-### Auth `/api/auth`
-
-| Method | Endpoint | Rate Limit | Description |
-|---|---|---|---|
-| `POST` | `/register` | Strict 5/15 min | Register; sends OTP email |
-| `POST` | `/login` | Strict 5/15 min | Login; issues JWT cookies |
-| `POST` | `/logout` | — | Blacklists tokens, clears cookies |
-| `POST` | `/refresh` | Loose 30/min | Issues new access token |
-| `POST` | `/verify-otp` | Moderate 10/15 min | Verify OTP → issues JWT cookies |
-| `POST` | `/resend-otp` | Moderate 10/15 min | Resend OTP (60 s cooldown) |
-| `POST` | `/forgot-password` | Strict | Sends reset OTP |
-| `POST` | `/reset-password` | Strict | Resets password via OTP |
-| `POST` | `/google-login` | Strict | Google OAuth login |
-| `POST` | `/google-register` | Strict | Google OAuth register |
-| `PATCH` | `/profile` | tenantAuth | Update name / phone |
-| `PATCH` | `/change-password` | tenantAuth | Change password |
-
-### Properties `/api/properties`
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/` | tenant | Get all properties (paginated) |
-| `POST` | `/` | landlord + upload | Create property with images |
-| `PATCH` | `/:id` | landlord | Update property |
-| `DELETE` | `/:id` | landlord | Delete property |
-| `GET` | `/pending-requests` | landlord | Pending tenant join requests |
-| `POST` | `/:id/tenants` | tenant | Request to join property |
-| `POST` | `/:id/tenants/:tid/accept` | landlord | Accept tenant request |
-| `POST` | `/:id/tenants/:tid/reject` | landlord | Reject tenant request |
-| `DELETE` | `/:id/tenants/:tid` | tenant | Remove tenant |
-
-### Bookings `/api/bookings`
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/book` | tenant | Book amenity slot |
-| `POST` | `/property/book` | tenant | Book entire property |
-| `GET` | `/my` | tenant | My bookings (paginated) |
-| `PUT` | `/:id/approve` | landlord | Approve booking |
-| `PUT` | `/:id/reject` | landlord | Reject booking |
-| `PUT` | `/:id/approve-cancellation` | landlord | Approve cancellation |
-| `PUT` | `/:id/reject-cancellation` | landlord | Reject cancellation |
-| `POST` | `/:id/checkin` | tenant | Check in |
-| `POST` | `/:id/checkout` | tenant | Check out |
-| `DELETE` | `/:id` | tenant | Cancel booking |
-| `GET` | `/amenity/:aid/availability` | tenant | Amenity slot availability |
-| `GET` | `/property/:pid/availability` | tenant | Property availability |
-
-### Maintenance `/api/maintenance`
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/kpi` | tenant | KPI stats (role-scoped) |
-| `POST` | `/` | tenant + upload | Submit request with optional image |
-| `GET` | `/` | tenant | Get requests (role-scoped) |
-| `PUT` | `/:id/status` | tenant | Update status + resolution notes |
-| `PUT` | `/:id/assign` | landlord | Assign staff member |
-| `POST` | `/:id/review` | tenant | Submit rating + feedback |
-
-### Amenities `/api/amenities`
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/` | landlord | Create amenity |
-| `GET` | `/` | tenant | List amenities |
-| `GET` | `/:id` | tenant | Get amenity |
-| `PATCH` | `/:id` | landlord | Update amenity |
-| `DELETE` | `/:id` | landlord | Delete amenity |
-
-### Dashboard `/api/dashboard`
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/` | tenant | Role-scoped dashboard (Redis cached 10 min) |
-| `PUT` | `/notifications/mark-read` | tenant | Mark all notifications read |
-
-### Users `/api/users`
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/` | auth | List users |
-| `POST` | `/request-role` | auth | Submit role change request |
-| `POST` | `/profile-picture` | auth + upload | Upload profile picture |
-| `PUT` | `/:id/role` | admin | Approve/set user role |
-
----
-
-## 🔒 Authentication Flow
-
-```
-REGISTER
-  POST /register  →  create unverified user  →  send OTP email
-  POST /verify-otp  →  isVerified=true  →  issue JWT cookies
-
-GOOGLE REGISTER
-  POST /google-login (new user)  →  { isNewGoogleUser: true }
-  Frontend shows phone + role form
-  POST /google-register  →  create verified user  →  JWT cookies
-
-LOGIN
-  POST /login  →  bcrypt.compare  →  accessToken (15 min) + refreshToken (7 d)
-  Cookies: HttpOnly, Secure, SameSite=None
-
-AUTO-REFRESH
-  API → 401  →  axiosInstance interceptor  →  POST /auth/refresh
-  New accessToken cookie  →  retry original request
-  Refresh fails  →  clear localStorage  →  redirect /login
-
-LOGOUT
-  POST /logout  →  blacklist both tokens in Redis (TTL = JWT exp)
-  clearCookie both  →  localStorage removed
-
-FORGOT PASSWORD
-  POST /forgot-password  →  OTP email
-  POST /reset-password   →  verify OTP  →  bcrypt new password
-```
-
-**Role Hierarchy**
-
-```
-admin  ⊃  landlord  ⊃  tenant
-                       maintenance_staff (separate)
-```
-
-| Middleware | Allowed roles |
-|---|---|
-| `tenantmiddleware` | tenant, landlord, admin |
-| `landlordmiddleware` | landlord, admin |
-| `adminmiddleware` | admin only |
-
----
-
-## 🗄️ Database Design
-
-```
-User ─────────────────────────────────────────────────────────┐
- ├── myProperties[] ──► Property                              │
- └── myTenants[]    ──► User                                  │
-                                                              │
-Property ──► owner: User                                      │
- ├── tenants[]        ──► User                                │
- └── pendingTenants[] ──► User                                │
-                                                              │
-Amenity ──► property: Property                                │
-                                                              │
-Booking ──► user: User                                        │
- ├── property: Property                                       │
- └── amenity: Amenity (optional)                              │
-                                                              │
-MaintenanceRequest ──► user: User                             │
- ├── property: Property                                       │
- ├── assignedStaff: User (optional)                           │
- └── resolvedBy: User (optional)                              │
-                                                              │
-Notification ──► recipient: User                              │
- ├── relatedProperty: Property (opt)                          │
- ├── relatedUser: User (opt)                                  │
- └── relatedBooking: Booking (opt)                            │
-                                                              │
-Message ──► sender: User                                      │
-         └── receiver: User                                   │
-```
-
-| Model | Notable Fields |
-|---|---|
-| **User** | `role` enum (4 values), `googleId`, `isVerified`, `requestedRole` |
-| **Property** | `propertyType` (6 values), `rentType` hourly/monthly, `openingHour/closingHour` (0-23) |
-| **Amenity** | `openingHour/closingHour` (int 0-23), legacy Date fields kept for compat, `pricePerHour` |
-| **MaintenanceRequest** | 5-state `status`, `resolvedAt`, `resolutionNotes`, `rating` (1-5) |
-| **Booking** | 6-state `status`, `checkInTime/checkOutTime`, `paymentStatus` |
-| **Notification** | 14-value `type` enum, `status` unread/read |
-
----
-
-## 🧑‍💻 Usage
-
-### For Tenants
-1. Register at `/register` or sign in with Google → verify email via OTP
-2. Browse properties at `/explore` and request to join one
-3. Once accepted, book amenities at `/amenities` or book the property directly
-4. Submit maintenance requests at `/maintenance` with optional photo
-5. Track booking status and check in/out at `/bookings`
-6. Message landlord at `/messages`; receive real-time notifications via the bell icon
-
-### For Landlords
-1. Register → request **Landlord** role from sidebar → wait for admin approval
-2. Create properties at `/properties` with images, pricing, and amenities
-3. Accept/reject tenant join requests from the dashboard
-4. Approve/reject bookings and cancellations from `/bookings`
-5. Track maintenance requests, assign staff, and update status at `/maintenance`
-
-### For Admins
-1. Login with admin credentials
-2. Access **Admin Panel** at `/admin` for platform-wide KPI monitoring
-3. Approve user role changes via `PUT /api/users/:id/role`
-
----
-
-## 🔨 Scripts
-
-### Backend
+### 3️⃣ Frontend Installation
 ```bash
-npm run dev     # nodemon (hot reload)
-npm start       # node (production)
-```
+# Open a new terminal tab and navigate to frontend
+cd ../frontend
 
-### Frontend
-```bash
-npm run dev     # Vite dev server (localhost:5173)
-npm run build   # Production bundle → dist/
-npm run preview # Preview production build
-npm run lint    # ESLint
+# Install dependencies
+npm install
+
+# Create frontend environment configuration
+cat <<EOT > .env
+VITE_API_BASE_URL=http://localhost:5000/api
+VITE_SOCKET_URL=http://localhost:5000
+EOT
+
+# Start Vite development server
+npm run dev
 ```
 
 ---
 
-## 🌐 Deployment
+## 📜 Available NPM Scripts
 
-> ⚠️ No Dockerfile or cloud config exists in this repo. Below are recommended steps.
+### Backend (`/backend/package.json`)
 
-### Backend (Railway / Render / Fly.io)
-1. Set all env variables from the table above in your host dashboard
-2. Update CORS origin in `server.js` to your production frontend URL
-3. Update Socket.IO CORS origin to match
-4. Set start command: `npm start`
-
-### Frontend (Vercel / Netlify)
-1. Set `VITE_GOOGLE_CLIENT_ID` in environment variables
-2. Update `baseURL` in `axiosInstance.js` from `http://localhost:5000` to backend prod URL
-3. Update socket URL in `Layout.jsx` to backend prod URL
-4. Build command: `npm run build` | Output: `dist/`
-
-> **Cookie Note**: Tokens use `httpOnly: true, secure: true, sameSite: "none"` — HTTPS is required on both services in production.
-
----
-
-## 🔮 Known Limitations & Future Improvements
-
-| Priority | Item | Current State |
+| Script | Command | Description |
 |---|---|---|
-| 🟡 Medium | Notification preferences not persisted to backend | `localStorage` only |
-| 🟡 Medium | No booking reminder cron job (`BOOKING_REMINDER` type exists in schema) | Not implemented |
-| 🟡 Medium | Maintenance rating/feedback UI (model fields exist) | No UI yet |
-| 🟡 Medium | Image messages in chat (field + icon present, no upload handler) | Not wired |
-| 🟡 Medium | Staff assignment requires manual User ID input | No dropdown yet |
-| 🟢 Low | No Dockerfile / deployment config | Manual only |
-| 🟢 Low | No test suite (Jest / Supertest) | None |
-| 🟢 Low | Frontend state uses `localStorage` + `useState` | No Zustand/Redux |
-| 🟢 Low | Frontend pagination UI not connected to backend pagination API | Backend ready, UI pending |
-| 🟢 Low | Property reviews/ratings (model fields exist, no endpoints) | Not implemented |
-| 🟢 Low | `axiosInstance` base URL hardcoded to `localhost:5000` | Should use `VITE_API_URL` |
+| `npm run dev` | `nodemon src/server.js` | Launches backend server with hot-reload monitoring |
+| `npm start` | `node src/server.js` | Executes production Node.js server entrypoint |
+| `npm run seed` | `node src/seed.js` | Populates database with sample users, properties & amenities |
+
+### Frontend (`/frontend/package.json`)
+
+| Script | Command | Description |
+|---|---|---|
+| `npm run dev` | `vite` | Starts Vite HMR local dev server at `http://localhost:5173` |
+| `npm run build` | `vite build` | Compiles optimized production bundle into `/dist` directory |
+| `npm run preview` | `vite preview` | Previews built static production bundle locally |
+| `npm run lint` | `eslint .` | Runs ESLint verification across client components |
+
+---
+
+## 🛡️ Security Implementation Details
+
+1. **HttpOnly Cookie Tokens**: Tokens are never stored in client `localStorage` or `sessionStorage`, protecting against Cross-Site Scripting (XSS) token extraction.
+2. **Redis Token Invalidation**: Blacklists token JTIs in Redis with auto-expiring keys on logout.
+3. **Atomic Redis Rate Limiting**: Uses Redis multi/exec sorted set commands to prune, count, and set TTL atomically, rejecting DOS/brute-force bursts with `HTTP 429`.
+4. **Credential Hashing**: Password hashing using **Bcrypt.js** with 10 salt rounds.
+5. **CORS Restrictions**: Configured via strict origin reflection matching `process.env.CLIENT_ORIGIN`.
+6. **HTTP Header Shielding**: **Helmet** middleware automatically attaches strict security headers (`X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`).
+7. **Role-Based Access Enforcement**: Route protection middleware verifies decoded token claims against authorized role arrays before granting controller execution.
+
+---
+
+## ⚡ Performance Optimizations
+
+1. **Redis Caching Strategy**: Property listings (`properties:all:*`) and KPI stats are cached in Redis with short TTLs, bypassing MongoDB queries for read-heavy screens.
+2. **Server-Side Pagination**: Endpoints support `?page=` and `?limit=` parameters, enforcing max limits (50 items/page) to prevent heavy database memory consumption.
+3. **Concurrent Query Execution**: Database operations leverage `Promise.all([Model.find(), Model.countDocuments()])` for dual queries in a single database network round trip.
+4. **Dynamic Module Splitting**: React components load route dependencies dynamically through Vite bundling.
+5. **Axios Silent Auth Interceptors**: Auto-refreshes expired access tokens seamlessly without forcing user screen refreshes or workflow interruptions.
+
+---
+
+## 🚑 Error Handling & Resiliency Strategy
+
+- **Unified Standardized JSON Format**: Every API response adheres to a predictable schema:
+  ```json
+  {
+    "success": false,
+    "message": "Human-readable error explanation",
+    "error": "OPTIONAL_ERROR_CODE"
+  }
+  ```
+- **Fail-Open Redis Architecture**: If the Redis server experiences connection dropouts, the `slidingWindowRateLimit` and `authMiddleware` log warnings and fail open, ensuring users can still access core functionality.
+
+---
+
+## 📐 Code Organization Principles
+
+Rentora strictly follows proven software design patterns:
+- **SOLID Principles**: Single responsibility pattern enforced across controllers, services, and middleware layers.
+- **DRY (Don't Repeat Yourself)**: Shared service utilities handle token operations, OTP generation, and image processing.
+- **KISS (Keep It Simple, Stupid)**: Clean component signatures and straightforward hook integrations.
+- **Separation of Concerns**: Complete decoupling of data access (Mongoose Models), business rules (Services & Controllers), and transport protocol definitions (Routes & Socket Handlers).
+
+---
+
+## 🚢 Deployment Guide
+
+### Deployment Architecture Options
+
+```mermaid
+graph TD
+    subgraph Client Hosting
+        Vercel[⚡ Vercel / Netlify] -->|Serves Static Dist| UserBrowser[🌐 Client Browser]
+    end
+    subgraph Backend Infrastructure
+        Render[🚀 Render / Railway / AWS EC2] -->|Node.js Runtime| ExpressServer[Express Server]
+        ExpressServer <--> Atlas[(🍃 MongoDB Atlas)]
+        ExpressServer <--> RedisCloud[(🔴 Redis Cloud)]
+        ExpressServer <--> CloudinaryCDN[☁️ Cloudinary]
+    end
+    
+    UserBrowser <-->|HTTPS REST & WSS| ExpressServer
+```
+
+### Deploying Frontend to Vercel
+1. Set Build Command: `npm run build`
+2. Set Output Directory: `dist`
+3. Configure Environment Variables:
+   - `VITE_API_BASE_URL=https://your-backend-api.onrender.com/api`
+   - `VITE_SOCKET_URL=https://your-backend-api.onrender.com`
+
+### Deploying Backend to Render / Railway
+1. Set Build Command: `npm install`
+2. Set Start Command: `npm start`
+3. Add Environment Variables (`DB_CONNECT_STRING`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASS`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `CLIENT_ORIGIN`).
+
+---
+
+## ❓ Troubleshooting FAQ
+
+<details>
+<summary><strong>1. Redis Connection Error on Startup?</strong></summary>
+
+* ensure Redis is running locally using `redis-server` or verify host/port credentials in `backend/.env`. If running without Redis, rate limiters will fail open cleanly.
+</details>
+
+<details>
+<summary><strong>2. CORS error during login or socket connection?</strong></summary>
+
+* Check that `CLIENT_ORIGIN` in `backend/.env` exactly matches your frontend dev URL (e.g., `http://localhost:5173`) including protocol and port.
+</details>
+
+<details>
+<summary><strong>3. Images fail to upload?</strong></summary>
+
+* Verify that `CLOUDINARY_NAME`, `CLOUDINARY_KEY`, and `CLOUDINARY_SECRET` are correctly configured in `backend/.env`.
+</details>
+
+---
+
+## 🔮 Future Improvements & Roadmap
+
+- [ ] **Automated Booking Reminders**: Background cron job engine sending notifications prior to booking start time.
+- [ ] **In-App Payment Gateway Integration**: Razorpay / Stripe integration for instant rent and amenity security deposit settlement.
+- [ ] **Maintenance Image Messaging**: Support image attachments directly inside real-time chat conversations.
+- [ ] **Zustand Global State Migration**: Standardize client state hydration across components.
 
 ---
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Commit: `git commit -m "feat: add my feature"`
-4. Push: `git push origin feature/my-feature`
-5. Open a Pull Request
-
-**Guidelines:**
-- Frontend: ES Modules (`import/export`)
-- Backend: CommonJS (`require/module.exports`)
-- Follow existing controller/route conventions
-- Invalidate Redis cache for any write endpoint that affects dashboard data
+Contributions are welcome! Please follow these steps:
+1. Fork the Repository.
+2. Create a Feature Branch (`git checkout -b feature/AmazingFeature`).
+3. Commit Changes (`git commit -m 'Add some AmazingFeature'`).
+4. Push to Branch (`git push origin feature/AmazingFeature`).
+5. Open a Pull Request.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **ISC License**.
+This project is licensed under the **ISC License**. See the [LICENSE](./LICENSE) file for details.
 
 ---
 
-## 👤 Author
+## 👨‍💻 Author
+
+<div align="center">
 
 **Rishabh Singh**  
-Unified Mentor Internship Project  
-Built with ❤️ using the MERN stack + Redis + Socket.IO
+*Full Stack Software Engineer*  
+
+[![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?style=for-the-badge&logo=github)](https://github.com/RIshabh231singh-shr)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin)](https://linkedin.com)
+[![Email](https://img.shields.io/badge/Email-Contact_Me-EA4335?style=for-the-badge&logo=gmail)](mailto:rishabh231singh@gmail.com)
+
+</div>
 
 ---
 
 <div align="center">
-  <sub>Rentora — Trusted by landlords and tenants     </sub>
+  <sub>Built with ❤️ for the Unified Mentor Internship Program · Rentora Platform 2026</sub>
 </div>
