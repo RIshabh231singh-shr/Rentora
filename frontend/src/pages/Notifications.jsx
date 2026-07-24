@@ -14,7 +14,7 @@ const TYPE_ICONS = {
   default: { icon: Bell, color: "bg-slate-100 text-slate-600", label: "General" },
 };
 
-function NotifItem({ notif, onApproveBooking, onRejectBooking, onApproveLease, onRejectLease, actioning, navigate }) {
+function NotifItem({ notif, onApproveBooking, onRejectBooking, onApproveLease, onRejectLease, onRoleAction, actioning, navigate }) {
   const { icon: Icon, color } = TYPE_ICONS[notif.type] || TYPE_ICONS.default;
   const bookingId = notif.relatedBooking?._id || notif.relatedBooking;
   const isPendingBooking = notif.relatedBooking?.status === "pending";
@@ -44,6 +44,7 @@ function NotifItem({ notif, onApproveBooking, onRejectBooking, onApproveLease, o
                 <Badge color={
                   notif.type === "BOOKING_CREATED" ? "blue" :
                   notif.type === "TENANT_REQUEST" ? "indigo" :
+                  notif.type === "ROLE_CHANGE_REQUEST" ? "purple" :
                   "amber"
                 }>{TYPE_ICONS[notif.type]?.label}</Badge>
               )}
@@ -89,6 +90,25 @@ function NotifItem({ notif, onApproveBooking, onRejectBooking, onApproveLease, o
                 </button>
                 <button
                   onClick={() => onApproveLease(notif.relatedProperty._id, notif.relatedUser._id, notif._id)}
+                  disabled={actioning === notif._id}
+                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+                >
+                  <CheckCircle2 className="size-3" />
+                  {actioning === notif._id ? "Processing..." : "Approve"}
+                </button>
+              </>
+            )}
+            {notif.type === "ROLE_CHANGE_REQUEST" && notif.relatedUser && !notif.message.includes("approved") && !notif.message.includes("rejected") && (
+              <>
+                <button
+                  onClick={() => onRoleAction(notif.relatedUser, "reject", notif._id)}
+                  disabled={actioning === notif._id}
+                  className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  Reject
+                </button>
+                <button
+                  onClick={() => onRoleAction(notif.relatedUser, "approve", notif._id)}
                   disabled={actioning === notif._id}
                   className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
                 >
@@ -194,6 +214,18 @@ export default function Notifications() {
     finally { setActioning(null); }
   };
 
+  const handleRoleAction = async (userId, action, notifId) => {
+    setActioning(notifId);
+    try {
+      await api.post(`/users/role-request/${userId}/${action}`);
+      await fetchNotifications();
+    } catch (err) {
+      alert(err.response?.data?.message || `Failed to ${action} role`);
+    } finally {
+      setActioning(null);
+    }
+  };
+
   const filtered = notifications.filter(n => {
     if (filter === "unread") return n.status === "unread";
     if (filter === "bookings") return n.type === "BOOKING_CREATED";
@@ -265,6 +297,7 @@ export default function Notifications() {
                   onRejectBooking={handleRejectBooking}
                   onApproveLease={handleApproveLease}
                   onRejectLease={handleRejectLease}
+                  onRoleAction={handleRoleAction}
                   actioning={actioning}
                   navigate={navigate}
                 />

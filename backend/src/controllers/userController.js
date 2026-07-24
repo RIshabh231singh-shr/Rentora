@@ -140,4 +140,78 @@ const uploadProfilePicture = async (req, res) => {
     }
 };
 
-module.exports = { getUsers, updateUserRole, requestRoleChange, uploadProfilePicture };
+// POST /api/users/role-request/:userId/approve
+const approveRoleRequest = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const targetUser = await User.findById(userId);
+        if (!targetUser) return res.status(404).json({ success: false, message: "User not found" });
+        if (!targetUser.requestedRole) return res.status(400).json({ success: false, message: "No pending role request" });
+
+        const oldRole = targetUser.role;
+        targetUser.role = targetUser.requestedRole;
+        targetUser.requestedRole = null;
+        await targetUser.save();
+
+        const Notification = require("../models/notification");
+        await Notification.create({
+            recipient: targetUser._id,
+            type: "SYSTEM",
+            title: "Role Change Approved",
+            message: `Your request to become a ${targetUser.role} has been approved.`
+        });
+
+        // Delete the request notification for admins
+        await Notification.updateMany(
+            { type: "ROLE_CHANGE_REQUEST", relatedUser: targetUser._id },
+            { $set: { status: "read", message: `Role change to ${targetUser.role} approved.` } }
+        );
+
+        return res.status(200).json({ success: true, message: "Role approved successfully" });
+    } catch (err) {
+        console.error("approveRoleRequest error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+// POST /api/users/role-request/:userId/reject
+const rejectRoleRequest = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const targetUser = await User.findById(userId);
+        if (!targetUser) return res.status(404).json({ success: false, message: "User not found" });
+        if (!targetUser.requestedRole) return res.status(400).json({ success: false, message: "No pending role request" });
+
+        const requestedRole = targetUser.requestedRole;
+        targetUser.requestedRole = null;
+        await targetUser.save();
+
+        const Notification = require("../models/notification");
+        await Notification.create({
+            recipient: targetUser._id,
+            type: "SYSTEM",
+            title: "Role Change Rejected",
+            message: `Your request to become a ${requestedRole} has been rejected.`
+        });
+
+        // Delete the request notification for admins
+        await Notification.updateMany(
+            { type: "ROLE_CHANGE_REQUEST", relatedUser: targetUser._id },
+            { $set: { status: "read", message: `Role change to ${requestedRole} rejected.` } }
+        );
+
+        return res.status(200).json({ success: true, message: "Role rejected successfully" });
+    } catch (err) {
+        console.error("rejectRoleRequest error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+module.exports = {
+    getUsers,
+    updateUserRole,
+    requestRoleChange,
+    approveRoleRequest,
+    rejectRoleRequest,
+    uploadProfilePicture,
+};
