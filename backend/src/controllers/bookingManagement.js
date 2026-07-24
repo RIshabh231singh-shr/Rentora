@@ -100,57 +100,76 @@ const bookAmenity = async (req, res) => {
 
 
         // ── DOUBLE-BOOKING PREVENTION ───────────────────────────────
-        // Check if user already has a booking that overlaps with this time
-        const userConflict = await Booking.findOne({
-            user: req.user.id,
-            amenity: amenityId,
-            status: { $in: ["booked", "checked_in"] },
-            // Overlap condition: existing.start < new.end AND existing.end > new.start
-            bookingStartTime: { $lt: end },
-            bookingEndTime: { $gt: start },
-        }).lean();
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        let booking;
 
-        if (userConflict) {
-            const conflictStart = new Date(userConflict.bookingStartTime).toLocaleTimeString("en-US", {
-                hour: "numeric", minute: "2-digit", hour12: true
-            });
-            const conflictEnd = new Date(userConflict.bookingEndTime).toLocaleTimeString("en-US", {
-                hour: "numeric", minute: "2-digit", hour12: true
-            });
-            return res.status(409).json({
-                success: false,
-                message: `You already have a booking for this amenity from ${conflictStart} to ${conflictEnd}`,
-                conflictingBooking: userConflict._id,
-            });
+        try {
+            // Check if user already has a booking that overlaps with this time
+            const userConflict = await Booking.findOne({
+                user: req.user.id,
+                amenity: amenityId,
+                status: { $in: ["booked", "checked_in"] },
+                // Overlap condition: existing.start < new.end AND existing.end > new.start
+                bookingStartTime: { $lt: end },
+                bookingEndTime: { $gt: start },
+            }).session(session).lean();
+
+            if (userConflict) {
+                await session.abortTransaction();
+                session.endSession();
+                const conflictStart = new Date(userConflict.bookingStartTime).toLocaleTimeString("en-US", {
+                    hour: "numeric", minute: "2-digit", hour12: true
+                });
+                const conflictEnd = new Date(userConflict.bookingEndTime).toLocaleTimeString("en-US", {
+                    hour: "numeric", minute: "2-digit", hour12: true
+                });
+                return res.status(409).json({
+                    success: false,
+                    message: `You already have a booking for this amenity from ${conflictStart} to ${conflictEnd}`,
+                    conflictingBooking: userConflict._id,
+                });
+            }
+
+            // ── CAPACITY CHECK ──────────────────────────────────────────
+            // Count how many active bookings exist for this amenity in the same time slot
+            const overlappingCount = await Booking.countDocuments({
+                amenity: amenityId,
+                status: { $in: ["booked", "checked_in"] },
+                bookingStartTime: { $lt: end },
+                bookingEndTime: { $gt: start },
+            }).session(session);
+
+            if (overlappingCount >= amenity.capacity) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(409).json({
+                    success: false,
+                    message: `This slot is fully booked (${overlappingCount}/${amenity.capacity} capacity). Please choose another time.`,
+                });
+            }
+
+            // ── Create the booking ──────────────────────────────────────
+            const [createdBooking] = await Booking.create([{
+                user: req.user.id,
+                property: amenity.property,
+                amenity: amenityId,
+                bookingStartTime: start,
+                bookingEndTime: end,
+                status: "pending",
+                paymentStatus: "pending",
+                totalAmount: 0,
+            }], { session });
+            
+            booking = createdBooking;
+
+            await session.commitTransaction();
+            session.endSession();
+        } catch (error) {
+            await session.abortTransaction();
+            session.endSession();
+            throw error;
         }
-
-        // ── CAPACITY CHECK ──────────────────────────────────────────
-        // Count how many active bookings exist for this amenity in the same time slot
-        const overlappingCount = await Booking.countDocuments({
-            amenity: amenityId,
-            status: { $in: ["booked", "checked_in"] },
-            bookingStartTime: { $lt: end },
-            bookingEndTime: { $gt: start },
-        });
-
-        if (overlappingCount >= amenity.capacity) {
-            return res.status(409).json({
-                success: false,
-                message: `This slot is fully booked (${overlappingCount}/${amenity.capacity} capacity). Please choose another time.`,
-            });
-        }
-
-        // ── Create the booking ──────────────────────────────────────
-        const booking = await Booking.create({
-            user: req.user.id,
-            property: amenity.property,
-            amenity: amenityId,
-            bookingStartTime: start,
-            bookingEndTime: end,
-            status: "pending",
-            paymentStatus: "pending",
-            totalAmount: 0,
-        });
 
         // Fire notification (non-blocking)
         Notification.create({
@@ -754,33 +773,52 @@ const bookProperty = async (req, res) => {
                 return res.status(422).json({ success: false, message: "Cannot book a slot in the past" });
             }
 
-            // Check conflicts
-            const conflict = await Booking.findOne({
-                property: propertyId,
-                amenity: null,
-                status: { $in: ["booked", "checked_in"] },
-                $or: [
-                    { bookingStartTime: { $lt: end }, bookingEndTime: { $gt: start } }
-                ]
-            }).lean();
-
-            if (conflict) {
-                return res.status(400).json({ success: false, message: "This time slot is already booked for this property" });
-            }
-
             const durationHours = (end - start) / (1000 * 60 * 60);
             totalAmount = Math.ceil(durationHours * property.pricePerHour);
         }
 
-        const booking = await Booking.create({
-            user: req.user.id,
-            property: propertyId,
-            bookingStartTime: start,
-            bookingEndTime: end,
-            totalAmount,
-            paymentStatus: "pending",
-            status: "pending"
-        });
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        let booking;
+
+        try {
+            if (property.rentType !== "monthly") {
+                // Check conflicts
+                const conflict = await Booking.findOne({
+                    property: propertyId,
+                    amenity: null,
+                    status: { $in: ["booked", "checked_in"] },
+                    $or: [
+                        { bookingStartTime: { $lt: end }, bookingEndTime: { $gt: start } }
+                    ]
+                }).session(session).lean();
+
+                if (conflict) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return res.status(400).json({ success: false, message: "This time slot is already booked for this property" });
+                }
+            }
+
+            const [createdBooking] = await Booking.create([{
+                user: req.user.id,
+                property: propertyId,
+                bookingStartTime: start,
+                bookingEndTime: end,
+                totalAmount,
+                paymentStatus: "pending",
+                status: "pending"
+            }], { session });
+            
+            booking = createdBooking;
+
+            await session.commitTransaction();
+            session.endSession();
+        } catch (error) {
+            await session.abortTransaction();
+            session.endSession();
+            throw error;
+        }
 
         // Fire notification
         Notification.create({

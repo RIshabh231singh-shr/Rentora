@@ -95,13 +95,30 @@ const createAmenity = async (req, res) => {
 const getAmenities = async (req, res) => {
     try {
         const { propertyId } = req.query;
-
         let filter = { isActive: true };
-        if (propertyId) {
-            if (!mongoose.Types.ObjectId.isValid(propertyId)) {
-                return res.status(400).json({ success: false, message: "Invalid property ID" });
+
+        if (req.user.role === "tenant") {
+            const tenantProperties = await Property.find({ tenants: req.user.id || req.user._id }).select("_id").lean();
+            const tenantPropIds = tenantProperties.map(p => p._id.toString());
+            
+            if (propertyId) {
+                if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+                    return res.status(400).json({ success: false, message: "Invalid property ID" });
+                }
+                if (!tenantPropIds.includes(propertyId)) {
+                    return res.status(403).json({ success: false, message: "You are not a tenant of this property" });
+                }
+                filter.property = propertyId;
+            } else {
+                filter.property = { $in: tenantPropIds };
             }
-            filter.property = propertyId;
+        } else {
+            if (propertyId) {
+                if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+                    return res.status(400).json({ success: false, message: "Invalid property ID" });
+                }
+                filter.property = propertyId;
+            }
         }
 
         const amenities = await Amenity.find(filter)
@@ -127,11 +144,19 @@ const getAmenityById = async (req, res) => {
         }
 
         const amenity = await Amenity.findById(amenityId)
-            .populate("property", "propertyName propertyAddress owner")
+            .populate("property", "propertyName propertyAddress owner tenants")
             .lean();
 
         if (!amenity) {
             return res.status(404).json({ success: false, message: "Amenity not found" });
+        }
+
+        if (req.user.role === "tenant") {
+            const userId = req.user.id || req.user._id;
+            const isTenant = amenity.property?.tenants?.some(t => t.toString() === userId.toString());
+            if (!isTenant) {
+                return res.status(403).json({ success: false, message: "Unauthorized to view this amenity" });
+            }
         }
 
         return res.status(200).json({ success: true, data: amenity });

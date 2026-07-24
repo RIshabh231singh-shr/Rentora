@@ -152,7 +152,7 @@ function AmenityBookingModal({ amenity, open, onClose, myBookings, onBooked }) {
       setStartHour(null); setEndHour(null);
       onBooked?.();
       api.get(`/bookings/amenity/${amenity._id}/availability`, { params: { date } })
-        .then(r => setBookedIntervals(r.data.bookedIntervals || [])).catch(() => {});
+        .then(r => setBookedIntervals(r.data.bookedIntervals || [])).catch(e => console.error("Availability error:", e));
     } catch (err) {
       setMsg({ type: "error", text: err.response?.data?.message || "Booking failed." });
     } finally {
@@ -286,7 +286,9 @@ export default function Amenities() {
       setAmenities(amenRes.data.amenities || amenRes.data || []);
       const allBookings = bookRes.data.bookings || bookRes.data || [];
       setMyBookings(allBookings.filter(b => b.amenity));
-    } catch {}
+    } catch (e) {
+      console.error("Failed to fetch data:", e);
+    }
     finally { setLoading(false); }
   };
 
