@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const tenantAuthMiddleware = require("../middleware/tenantmiddleware");
+const tenantAuthMiddleware = require("../middleware/tenantMiddleware");
 const { getDashboardData, markNotificationsAsRead } = require("../controllers/dashboardController");
 
 router.get("/", tenantAuthMiddleware, getDashboardData);

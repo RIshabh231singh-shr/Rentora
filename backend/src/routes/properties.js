@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
 
-const landlordAuthMiddleware = require("../middleware/landlordmiddleware");
-const tenantAuthMiddleware = require("../middleware/tenantmiddleware");
-const upload = require("../middleware/upload");
+const landlordAuthMiddleware = require("../middleware/landlordMiddleware");
+const tenantAuthMiddleware = require("../middleware/tenantMiddleware");
+const upload = require("../middleware/uploadMiddleware");
 
 const {
     createProperty,
@@ -17,7 +17,7 @@ const {
     acceptTenantRequest,
     rejectTenantRequest,
     getPendingTenantRequests
-} = require("../controllers/propertyManagement");
+} = require("../controllers/propertyController");
 
 // Landlord Routes
 router.post("/", landlordAuthMiddleware, upload.array("images", 5), createProperty);

@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 
-const tenantAuthMiddleware = require("../middleware/tenantmiddleware");
-const landlordAuthMiddleware = require("../middleware/landlordmiddleware");
+const tenantAuthMiddleware = require("../middleware/tenantMiddleware");
+const landlordAuthMiddleware = require("../middleware/landlordMiddleware");
 
 const {
     bookAmenity,
@@ -19,8 +19,7 @@ const {
     rejectBooking,
     approveCancellation,
     rejectCancellation
-} = require("../controllers/bookingManagement");
-
+} = require("../controllers/bookingController");
 
 router.post("/book", tenantAuthMiddleware, bookAmenity);
 router.post("/property/book", tenantAuthMiddleware, bookProperty);
@@ -30,13 +29,10 @@ router.put("/:bookingId/reject", landlordAuthMiddleware, rejectBooking);
 router.put("/:bookingId/approve-cancellation", landlordAuthMiddleware, approveCancellation);
 router.put("/:bookingId/reject-cancellation", landlordAuthMiddleware, rejectCancellation);
 
-
 router.get("/amenity/:amenityId/availability", tenantAuthMiddleware, getSlotAvailability);
 router.get("/property/:propertyId/availability", tenantAuthMiddleware, getPropertySlotAvailability);
 
-
 router.get("/amenity/:amenityId", tenantAuthMiddleware, getBookingsForAmenity);
-
 
 router.get("/:bookingId", tenantAuthMiddleware, getBookingById);
 
@@ -44,9 +40,7 @@ router.get("/:bookingId", tenantAuthMiddleware, getBookingById);
 router.post("/:bookingId/checkin", tenantAuthMiddleware, checkIn);
 router.post("/:bookingId/checkout", tenantAuthMiddleware, checkOut);
 
-
 // Cancel booking
 router.delete("/:bookingId", tenantAuthMiddleware, cancelBooking);
-
 
 module.exports = router;

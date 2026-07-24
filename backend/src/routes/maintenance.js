@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const tenantAuthMiddleware = require("../middleware/tenantmiddleware");
-const landlordAuthMiddleware = require("../middleware/landlordmiddleware");
-const upload = require("../middleware/upload");
+const tenantAuthMiddleware = require("../middleware/tenantMiddleware");
+const landlordAuthMiddleware = require("../middleware/landlordMiddleware");
+const upload = require("../middleware/uploadMiddleware");
 const { createRequest, getRequests, updateRequestStatus, assignStaff, getMaintenanceKPIs, submitReview } = require("../controllers/maintenanceController");
 
 // KPI stats — any authenticated user (role-scoped inside controller)
@@ -24,4 +24,3 @@ router.put("/:requestId/assign", landlordAuthMiddleware, assignStaff);
 router.post("/:id/review", tenantAuthMiddleware, submitReview);
 
 module.exports = router;
-

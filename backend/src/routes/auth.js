@@ -1,11 +1,23 @@
 const express = require("express");
 const router = express.Router();
-const { registerUser, loginUser, logoutUser, refreshAccessToken, googleLogin, googleRegister, verifyOtp, resendOtp, forgotPassword, resetPassword, updateProfile, changePassword } = require("../controllers/userAuthentication");
-const tenantAuthMiddleware = require("../middleware/tenantmiddleware");
+const {
+    registerUser,
+    loginUser,
+    logoutUser,
+    refreshAccessToken,
+    googleLogin,
+    googleRegister,
+    verifyOtp,
+    resendOtp,
+    forgotPassword,
+    resetPassword,
+    updateProfile,
+    changePassword
+} = require("../controllers/authController");
+const tenantAuthMiddleware = require("../middleware/tenantMiddleware");
 const slidingWindowRateLimit = require("../middleware/rateLimiter");
 
 // ── Rate limiters (Redis Sliding Window) ──────────────────────────
-// Strict: login, register, forgot/reset password — 5 attempts per 15 minutes
 const strictLimiter = slidingWindowRateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
@@ -13,7 +25,6 @@ const strictLimiter = slidingWindowRateLimit({
     message: "Too many authentication attempts. Please wait 15 minutes before trying again.",
 });
 
-// Moderate: OTP endpoints — 10 attempts per 15 minutes
 const otpLimiter = slidingWindowRateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
@@ -21,7 +32,6 @@ const otpLimiter = slidingWindowRateLimit({
     message: "Too many OTP requests. Please wait before requesting a new OTP.",
 });
 
-// Loose: token refresh — 30 requests per minute
 const refreshLimiter = slidingWindowRateLimit({
     windowMs: 60 * 1000,
     max: 30,
@@ -43,4 +53,3 @@ router.patch("/profile", tenantAuthMiddleware, updateProfile);
 router.patch("/change-password", tenantAuthMiddleware, changePassword);
 
 module.exports = router;
-

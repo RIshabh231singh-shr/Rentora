@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 
-const landlordAuthMiddleware = require("../middleware/landlordmiddleware");
-const tenantAuthMiddleware = require("../middleware/tenantmiddleware");
+const landlordAuthMiddleware = require("../middleware/landlordMiddleware");
+const tenantAuthMiddleware = require("../middleware/tenantMiddleware");
 
 const {
     createAmenity,
@@ -10,7 +10,7 @@ const {
     getAmenityById,
     updateAmenity,
     deleteAmenity,
-} = require("../controllers/userAmenity");
+} = require("../controllers/amenityController");
 
 router.post("/", landlordAuthMiddleware, createAmenity);
 router.patch("/:amenityId", landlordAuthMiddleware, updateAmenity);
