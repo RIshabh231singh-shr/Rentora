@@ -20,6 +20,7 @@ build/
 # test files
 tests/
 coverage/
+internship_report/
 
 # editor files
 .vscode/

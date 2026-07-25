@@ -83,9 +83,15 @@ Rentora introduces a unified real-time dashboard powered by **React 19**, **Expr
 | ![Dashboard Screenshot](./docs/screenshots/dashboard.png) | ![Properties Screenshot](./docs/screenshots/properties.png) |
 | *Role-aware analytics, SLA badges & real-time activity feed* | *Advanced filtering by city, price range, and property type* |
 
+<br/>
+
+| 📅 User Bookings & Check-In | 🛠️ Maintenance & SLA Workbench |
+|:---:|:---:|
+| ![Bookings Screenshot](./docs/screenshots/bookings.png) | ![Maintenance Screenshot](./docs/screenshots/maintenance.png) |
+| *Active amenity bookings, rental dates & check-in timestamps* | *Maintenance issue tracking, staff assignment & SLA timers* |
+
 </div>
 
-> 📝 *Note: Additional page visual mocks can be captured and added to `./docs/screenshots/`.*
 
 ---
 
@@ -872,7 +878,6 @@ This project is licensed under the **ISC License**. See the [LICENSE](./LICENSE)
 <div align="center">
 
 **Rishabh Singh**  
-*Full Stack Software Engineer*  
 
 [![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?style=for-the-badge&logo=github)](https://github.com/RIshabh231singh-shr)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin)](https://linkedin.com)
