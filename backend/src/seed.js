@@ -75,12 +75,6 @@ const seedDatabase = async () => {
 
         console.log("✅ Users preserved and fetched successfully.");
 
-        // 2. Delete ALL non-user data
-        await Property.deleteMany({});
-        await Amenity.deleteMany({});
-        await Booking.deleteMany({});
-        await MaintenanceRequest.deleteMany({});
-        await Notification.deleteMany({});
         
         // Remove orphaned references from Users
         await User.updateMany({}, { $set: { myProperties: [], myTenants: [] } });
