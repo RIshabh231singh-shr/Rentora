@@ -1,0 +1,59 @@
+{
+  "steadyConcurrency": 50,
+  "totalDurationSec": 9,
+  "totalSamples": 4,
+  "initialMemoryMB": 43.07,
+  "finalMemoryMB": 66.23,
+  "netMemoryLeakMB": 23.15,
+  "hasMemoryLeak": false,
+  "firstHalfAvgLatencyMs": 466.54,
+  "secondHalfAvgLatencyMs": 425.62,
+  "latencyDegradationPercent": -8.77,
+  "hasLatencyDrift": false,
+  "samples": [
+    {
+      "sampleIndex": 1,
+      "timestamp": "2026-07-25T19:18:03.036Z",
+      "elapsedMs": 3166,
+      "reqPerSec": 165,
+      "avgLatencyMs": 359.53,
+      "p95LatencyMs": 739.52,
+      "errorRate": 72.42,
+      "heapUsedMB": 50.23,
+      "memoryDeltaMB": 7.15
+    },
+    {
+      "sampleIndex": 2,
+      "timestamp": "2026-07-25T19:18:05.778Z",
+      "elapsedMs": 5908,
+      "reqPerSec": 104,
+      "avgLatencyMs": 573.56,
+      "p95LatencyMs": 1872.27,
+      "errorRate": 75.96,
+      "heapUsedMB": 53.57,
+      "memoryDeltaMB": 10.5
+    },
+    {
+      "sampleIndex": 3,
+      "timestamp": "2026-07-25T19:18:08.689Z",
+      "elapsedMs": 8819,
+      "reqPerSec": 196.5,
+      "avgLatencyMs": 330.88,
+      "p95LatencyMs": 861.84,
+      "errorRate": 75.57,
+      "heapUsedMB": 55.78,
+      "memoryDeltaMB": 12.71
+    },
+    {
+      "sampleIndex": 4,
+      "timestamp": "2026-07-25T19:18:12.941Z",
+      "elapsedMs": 13071,
+      "reqPerSec": 138,
+      "avgLatencyMs": 520.35,
+      "p95LatencyMs": 1911.98,
+      "errorRate": 75.72,
+      "heapUsedMB": 65.83,
+      "memoryDeltaMB": 22.76
+    }
+  ]
+}

@@ -17,7 +17,8 @@ Thumbs.db
 dist/
 build/
 
-# coverage
+# test files
+tests/
 coverage/
 
 # editor files
