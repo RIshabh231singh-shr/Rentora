@@ -448,10 +448,10 @@ export default function Maintenance() {
 
   return (
     <Layout pageTitle="Maintenance">
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto overflow-x-hidden">
+        <div className="flex flex-wrap items-start sm:items-center justify-between mb-6 sm:mb-8 gap-3">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">Maintenance Requests</h1>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">Maintenance Requests</h1>
             <p className="text-slate-500 text-sm mt-1">Track and manage property maintenance</p>
           </div>
           <GradientButton onClick={() => setCreateOpen(true)} icon={<Plus className="size-4" />}>
@@ -516,9 +516,10 @@ export default function Maintenance() {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setCreateOpen(true)}
-        className="fixed bottom-8 right-8 size-14 rounded-2xl shadow-xl flex items-center justify-center cursor-pointer border-none z-50"
+        className="fixed bottom-20 sm:bottom-8 right-5 sm:right-8 size-14 rounded-2xl shadow-xl flex items-center justify-center cursor-pointer border-none z-50"
         style={{ background: "linear-gradient(135deg, #2563EB, #4F46E5)" }}
         title="New Request"
+        aria-label="Create new maintenance request"
       >
         <Plus className="size-6 text-white" />
       </motion.button>

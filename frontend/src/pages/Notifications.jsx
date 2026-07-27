@@ -245,11 +245,11 @@ export default function Notifications() {
 
   return (
     <Layout pageTitle="Notifications">
-      <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto overflow-x-hidden">
+        <div className="flex flex-wrap items-start sm:items-center justify-between mb-6 sm:mb-8 gap-3">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-extrabold text-slate-900">Notifications</h1>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">Notifications</h1>
               {unreadCount > 0 && (
                 <span className="px-2.5 py-1 rounded-full bg-blue-600 text-white text-xs font-bold">{unreadCount} new</span>
               )}

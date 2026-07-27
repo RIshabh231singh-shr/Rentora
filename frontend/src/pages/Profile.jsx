@@ -108,13 +108,13 @@ export default function Profile() {
 
   return (
     <Layout pageTitle="Profile">
-      <div className="p-6 lg:p-8 max-w-4xl mx-auto">
-        <div className="relative rounded-3xl overflow-hidden mb-8 p-8"
+      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto overflow-x-hidden">
+        <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden mb-6 sm:mb-8 p-5 sm:p-8"
           style={{ background: "linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0C1A3A 100%)" }}>
           <div className="blob w-48 h-48 bg-blue-500/20 top-0 right-0 animate-blob" />
           <div className="blob w-32 h-32 bg-indigo-500/15 bottom-0 left-20 animate-blob" style={{ animationDelay: "2s" }} />
 
-          <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6">
+          <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
             <div className="relative">
               <div className="size-24 rounded-2xl overflow-hidden ring-4 ring-white/20">
                 <Avatar name={`${user?.firstname} ${user?.lastname}`} size="xl" src={user?.profilePicture} />
@@ -129,8 +129,8 @@ export default function Profile() {
               </button>
             </div>
 
-            <div className="flex-1 text-center sm:text-left">
-              <h1 className="text-3xl font-extrabold text-white mb-1">{user?.firstname} {user?.lastname}</h1>
+            <div className="flex-1 text-center sm:text-left min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white mb-1 break-words">{user?.firstname} {user?.lastname}</h1>
               <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start mb-3">
                 <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold capitalize">{user?.role}</span>
                 {user?.isVerified && (
@@ -179,13 +179,13 @@ export default function Profile() {
               />
               {msg && <p className={`text-sm mb-4 font-medium ${msg.includes("updated") ? "text-emerald-600" : "text-red-600"}`}>{msg}</p>}
               {editMode ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     { label: "First Name", key: "firstname" },
                     { label: "Last Name", key: "lastname" },
                     { label: "Phone Number", key: "phoneNumber" },
                   ].map(({ label, key }) => (
-                    <div key={key} className={key === "phoneNumber" ? "col-span-2" : ""}>
+                    <div key={key} className={key === "phoneNumber" ? "sm:col-span-2" : ""}>
                       <label className="form-label">{label}</label>
                       <input className="form-input" value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
                     </div>

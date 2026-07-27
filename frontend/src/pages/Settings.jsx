@@ -100,7 +100,7 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-5">
         <GlassCard className="p-5">
           <SectionHeader title="Account Information" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { label: "First Name", key: "firstname" },
               { label: "Last Name", key: "lastname" },
@@ -165,9 +165,9 @@ export default function SettingsPage() {
 
   return (
     <Layout pageTitle="Settings">
-      <div className="p-6 lg:p-8 max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-extrabold text-slate-900">Settings</h1>
+      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto overflow-x-hidden">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">Settings</h1>
           <p className="text-slate-500 text-sm mt-1">Manage your account preferences and configuration</p>
         </div>
 

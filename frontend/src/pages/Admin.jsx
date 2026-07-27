@@ -186,16 +186,16 @@ export default function AdminPanel() {
 
   return (
     <Layout pageTitle="Admin Panel">
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto overflow-x-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-wrap items-start sm:items-center justify-between mb-6 sm:mb-8 gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="size-8 rounded-lg bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center">
                 <ShieldCheck className="size-4 text-white" />
               </div>
-              <h1 className="text-2xl font-extrabold text-slate-900">Admin Panel</h1>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">Admin Panel</h1>
             </div>
             <p className="text-slate-500 text-sm">Platform-wide monitoring and management</p>
           </div>
@@ -205,12 +205,12 @@ export default function AdminPanel() {
         </div>
 
         {/* Tabs */}
-        <div className="flex rounded-xl bg-slate-100 p-1 gap-1 mb-8 w-fit">
+        <div className="flex rounded-xl bg-slate-100 p-1 gap-1 mb-6 sm:mb-8 overflow-x-auto">
           {TABS.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`py-2 px-5 rounded-lg text-sm font-bold capitalize cursor-pointer border-none transition-all ${tab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 bg-transparent"}`}
+              className={`py-2 px-4 sm:px-5 rounded-lg text-sm font-bold capitalize cursor-pointer border-none transition-all whitespace-nowrap ${tab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 bg-transparent"}`}
             >
               {t.label}
             </button>

@@ -149,10 +149,10 @@ export default function Messages() {
 
   return (
     <Layout pageTitle="Messages">
-      <div className="flex h-[calc(100vh-60px)]">
+      <div className="flex h-[calc(100dvh-60px)] overflow-hidden">
 
-        {/* Sidebar */}
-        <div className="w-72 lg:w-80 shrink-0 border-r border-slate-200 bg-white flex flex-col">
+        {/* Sidebar — hidden on mobile when chat is open */}
+        <div className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full md:w-72 lg:w-80 shrink-0 border-r border-slate-200 bg-white flex-col`}>
           {/* Header */}
           <div className="p-4 border-b border-slate-100">
             <h2 className="font-bold text-slate-900 text-lg mb-3">Messages</h2>
@@ -207,12 +207,20 @@ export default function Messages() {
           </div>
         </div>
 
-        {/* Chat area */}
+        {/* Chat area — full width on mobile when open */}
         {selectedConversation ? (
-          <div className="flex-1 flex flex-col bg-slate-50">
-            {/* Chat header */}
-            <div className="h-[60px] flex items-center justify-between px-6 bg-white border-b border-slate-200">
+          <div className="flex-1 flex flex-col bg-slate-50 min-w-0">
+            {/* Chat header with mobile back button */}
+            <div className="h-[60px] flex items-center justify-between px-4 sm:px-6 bg-white border-b border-slate-200">
               <div className="flex items-center gap-3">
+                {/* Back button - mobile only */}
+                <button
+                  onClick={() => setSelectedId(null)}
+                  className="md:hidden size-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 cursor-pointer border-none transition-colors mr-1"
+                  aria-label="Back to conversations"
+                >
+                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                </button>
                 <div className="relative">
                   <Avatar name={`${selectedConversation.firstname} ${selectedConversation.lastname}`} size="sm" />
                   {selectedConversation.online && (
