@@ -445,7 +445,8 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
 
   useEffect(() => {
     if (!user) return;
-    const socket = io("http://localhost:5000");
+    const socketUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+    const socket = io(socketUrl);
     socket.emit("register", user._id || user.id);
     socket.on("notification", (data) => {
       const id = Date.now();

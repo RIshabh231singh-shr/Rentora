@@ -21,9 +21,21 @@ const server = http.createServer(app);
 // Initialize Socket.IO
 initializeSocket(server);
 
-// Middleware
+const allowedOrigins = [
+  "https://rentora231.netlify.app",
+  "http://localhost:5173",
+  "http://localhost:5000",
+  env.clientOrigin
+].filter(Boolean);
+
 app.use(cors({
-    origin: env.clientOrigin,
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes(origin.replace(/\/$/, ""))) {
+            callback(null, true);
+        } else {
+            callback(null, true);
+        }
+    },
     credentials: true
 }));
 app.use(express.json());

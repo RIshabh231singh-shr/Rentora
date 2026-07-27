@@ -5,7 +5,7 @@ const { registerSocketHandlers } = require("../socket/socketHandler");
 function initializeSocket(server) {
     const io = new Server(server, {
         cors: {
-            origin: env.clientOrigin,
+            origin: (origin, callback) => callback(null, true),
             credentials: true
         }
     });

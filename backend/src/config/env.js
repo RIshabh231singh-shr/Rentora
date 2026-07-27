@@ -21,5 +21,5 @@ module.exports = {
         key: process.env.CLOUDINARY_KEY,
         secret: process.env.CLOUDINARY_SECRET,
     },
-    clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+    clientOrigin: process.env.CLIENT_ORIGIN || "https://rentora231.netlify.app",
 };
