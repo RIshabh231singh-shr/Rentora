@@ -396,11 +396,43 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
   const navigate = useNavigate();
   const unread = notifications.filter(n => n.status === "unread");
 
+  const profileRef = useRef(null);
+  const notifRef = useRef(null);
+
+  // Close dropdowns on outside click without pointer interception
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleNotifClick = async () => {
     setNotifOpen(v => !v);
     if (!notifOpen && unread.length > 0) {
       onMarkRead?.();
     }
+  };
+
+  const handleLogout = async () => {
+    setProfileOpen(false);
+    try { await authService.logout(); } catch {}
+    if (window.socket) {
+      try {
+        window.socket.disconnect();
+        window.socket = null;
+      } catch {}
+    }
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    sessionStorage.clear();
+    navigate("/login");
   };
 
   return (
@@ -423,7 +455,7 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
         <h1 className="text-sm font-semibold text-slate-700 flex-1 truncate">{pageTitle}</h1>
 
         {/* Notifications */}
-        <div className="relative">
+        <div className="relative" ref={notifRef}>
           <button
             onClick={handleNotifClick}
             className="size-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 relative cursor-pointer border-none transition-colors"
@@ -504,7 +536,7 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
         </div>
 
         {/* Profile */}
-        <div className="relative">
+        <div className="relative" ref={profileRef}>
           <button
             onClick={() => setProfileOpen(v => !v)}
             className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-xl hover:bg-slate-100 cursor-pointer border-none bg-transparent transition-colors"
@@ -546,10 +578,7 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
                 ))}
                 <hr className="my-1 border-slate-100" />
                 <button
-                  onClick={() => { 
-                    setProfileOpen(false); 
-                    navigate("/logout"); 
-                  }}
+                  onClick={handleLogout}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 font-semibold hover:bg-red-50 cursor-pointer border-none bg-transparent text-left transition-colors min-h-[44px]"
                 >
                   <LogOut className="size-4" />
@@ -560,14 +589,6 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
           </AnimatePresence>
         </div>
       </div>
-
-      {/* Click outside to close dropdowns */}
-      {(profileOpen || notifOpen) && (
-        <div
-          className="fixed inset-0 z-[99]"
-          onClick={() => { setProfileOpen(false); setNotifOpen(false); }}
-        />
-      )}
 
       {/* Toast notifications */}
       <Toast toasts={toasts} onDismiss={onDismissToast} />

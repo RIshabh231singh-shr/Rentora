@@ -138,8 +138,20 @@ function HomeRoute() {
 function LogoutRoute() {
   const navigate = useNavigate();
   useEffect(() => {
-    localStorage.removeItem("user");
-    navigate("/login");
+    const performLogout = async () => {
+      try { await authService.logout(); } catch {}
+      if (window.socket) {
+        try {
+          window.socket.disconnect();
+          window.socket = null;
+        } catch {}
+      }
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+      sessionStorage.clear();
+      navigate("/login");
+    };
+    performLogout();
   }, [navigate]);
   return null;
 }
