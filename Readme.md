@@ -3,29 +3,26 @@
 # 🏠 RENTORA
 ### *Production-Grade Real-Time Property Rental, Amenity & Maintenance Management Platform*
 
+[![Live Demo - Netlify](https://img.shields.io/badge/Live_App-rentora231.netlify.app-00C7B7?style=for-the-badge&logo=netlify&logoColor=white)](https://rentora231.netlify.app/)
+[![API Status - Render](https://img.shields.io/badge/API_Status-Online-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://rentora-xonw.onrender.com/health)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=for-the-badge&logo=semver)](https://github.com/RIshabh231singh-shr/Rentora)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933.svg?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-19.0.0-61DAFB.svg?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Express](https://img.shields.io/badge/Express-5.2.1-000000.svg?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose--9.6-47A248.svg?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-[![Redis](https://img.shields.io/badge/Redis-Sliding--Window--Limiter-DC382D.svg?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
-[![Socket.IO](https://img.shields.io/badge/Socket.IO-Realtime--Engine-010101.svg?style=for-the-badge&logo=socketdotio&logoColor=white)](https://socket.io/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4.3.0-06B6D4.svg?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Vite](https://img.shields.io/badge/Vite-v8.0-646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![License](https://img.shields.io/badge/License-ISC-yellow.svg?style=for-the-badge)](./LICENSE)
 
 <br/>
 
 <p align="center">
-  <strong>Rentora</strong> is an enterprise-ready, multi-tenant property rental ecosystem engineered to streamline property listings, hourly/monthly amenity bookings, real-time maintenance lifecycle tracking with strict SLA metrics, direct WebSocket messaging, and role-based access control (RBAC). Built with a modern dark glassmorphic UI.
+  <strong>Rentora</strong> is an enterprise-ready, multi-tenant property rental ecosystem engineered to streamline property listings, hourly/monthly amenity bookings, real-time maintenance lifecycle tracking with strict SLA metrics, direct WebSocket messaging, and role-based access control (RBAC). Built with a modern glassmorphic UI.
 </p>
 
 <p align="center">
-  <a href="#-live-demo">Live Demo</a> •
+  <a href="https://rentora231.netlify.app/">🌐 Launch Web App</a> •
+  <a href="#-live-demo">Live Links</a> •
   <a href="#-features">Features</a> •
   <a href="#-project-architecture">Architecture</a> •
   <a href="#-api-documentation">API Docs</a> •
-  <a href="#-database-design">Database Schema</a> •
   <a href="#-installation">Getting Started</a>
 </p>
 
@@ -48,17 +45,18 @@ Rentora introduces a unified real-time dashboard powered by **React 19**, **Expr
 3. **Redis Sliding Window Rate Limiter**: ZSET-based atomic rate limiting for auth endpoints (5 req/15min) to prevent brute-force attacks.
 4. **Maintenance SLA Tracking**: Real-time resolution metrics computing **Average Resolution Time (SLA ≤ 48h)** and **Completion Rate (KPI ≥ 90%)**.
 5. **Instant WebSocket Messaging**: Private peer-to-peer chat between landlords and tenants with room-isolated socket events.
-6. **Dark Glassmorphic UI**: High-end user interface designed with Tailwind CSS v4, Framer Motion animations, and Lucide icons.
+6. **Glassmorphic UI**: High-end user interface supporting Light & Dark Themes designed with Tailwind CSS v4, Framer Motion, and Lucide icons.
 
 ---
 
-## 🌐 Live Demo
+## 🌐 Live Demo & Deployment
 
-| Service | Environment | URL |
-|---|---|---|
-| **Frontend Application** | Production / Local | `http://localhost:5173` |
-| **Backend REST API** | Production / Local | `http://localhost:5000/api` |
-| **WebSocket Engine** | Socket.IO Server | `ws://localhost:5000` |
+| Component | Platform / Host | Production Live URL | Local Dev URL |
+|---|---|---|---|
+| 🌐 **Frontend App** | Netlify | [https://rentora231.netlify.app](https://rentora231.netlify.app/) | `http://localhost:5173` |
+| ⚡ **Backend REST API** | Render | [https://rentora-xonw.onrender.com](https://rentora-xonw.onrender.com) | `http://localhost:5000/api` |
+| 🔌 **WebSocket Engine** | Socket.IO | `wss://rentora-xonw.onrender.com` | `ws://localhost:5000` |
+| 💚 **API Health Check** | Render | [https://rentora-xonw.onrender.com/health](https://rentora-xonw.onrender.com/health) | `http://localhost:5000/health` |
 
 ### 🔑 Demo Credentials
 
