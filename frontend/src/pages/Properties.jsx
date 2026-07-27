@@ -44,7 +44,7 @@ function PropertyRow({ property, onEdit, onDelete, onView }) {
           <span className="text-xs font-semibold text-blue-600">₹{property.pricePerHour?.toLocaleString()}/{property.rentType === "monthly" ? "mo" : "hr"}</span>
         </div>
       </div>
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
         <button onClick={() => onView(property)} className="size-8 rounded-lg bg-blue-50 hover:bg-blue-100 flex items-center justify-center text-blue-600 cursor-pointer border-none transition-colors" title="View">
           <Eye className="size-4" />
         </button>
@@ -357,12 +357,12 @@ export default function Properties() {
 
   return (
     <Layout pageTitle="My Properties">
-      <div className="p-6 lg:p-8 max-w-6xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto overflow-x-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-wrap items-start sm:items-center justify-between mb-6 sm:mb-8 gap-3">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">My Properties</h1>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">My Properties</h1>
             <p className="text-slate-500 text-sm mt-1">Manage your listed properties and tenants</p>
           </div>
           <GradientButton onClick={() => setCreateOpen(true)} icon={<Plus className="size-4" />}>
@@ -371,7 +371,7 @@ export default function Properties() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <StatCard loading={loading} label="Total Properties" value={properties.length} icon={<Building2 className="size-5" />} color="blue" />
           <StatCard loading={loading} label="Active Tenants" value={totalTenants} icon={<Users className="size-5" />} color="green" />
           <StatCard loading={loading} label="Pending Requests" value={totalPending} icon={<Clock className="size-5" />} color="amber" />
@@ -439,7 +439,7 @@ export default function Properties() {
               {viewProp.images?.[0] && (
                 <img src={viewProp.images[0]} className="w-full h-48 object-cover rounded-xl" alt={viewProp.propertyName} />
               )}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { label: "Address", value: `${viewProp.propertyAddress}, ${viewProp.city}` },
                   { label: "Price", value: `₹${viewProp.pricePerHour?.toLocaleString()}/${viewProp.rentType === "monthly" ? "mo" : "hr"}` },

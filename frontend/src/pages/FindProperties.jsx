@@ -298,21 +298,20 @@ export default function FindProperties({ myRentalsMode = false }) {
 
   return (
     <Layout pageTitle={myRentalsMode ? "My Rentals" : "Browse Properties"}>
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto overflow-x-hidden">
 
         {/* Hero search bar */}
-        <div className="relative rounded-3xl overflow-hidden mb-8 p-8"
+        <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden mb-6 sm:mb-8 p-5 sm:p-8"
           style={{ background: "linear-gradient(135deg, #0F172A, #1E3A8A 50%, #0F172A)" }}>
-          <div className="blob w-64 h-64 bg-blue-500/20 -top-10 right-10 animate-blob" />
-          <div className="blob w-40 h-40 bg-cyan-500/15 bottom-0 left-20 animate-blob" style={{ animationDelay: "3s" }} />
+          <div className="blob w-40 sm:w-64 h-40 sm:h-64 bg-blue-500/20 -top-10 right-10 animate-blob" />
           <div className="relative z-10">
-            <h1 className="text-3xl font-extrabold text-white mb-2">{myRentalsMode ? "My Rentals" : "Find Your Perfect Space"}</h1>
-            <p className="text-slate-400 mb-6">{myRentalsMode ? "View and manage properties you are currently renting" : "Discover properties, villas, gyms, and more"}</p>
-            <div className="flex gap-3 flex-col sm:flex-row">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white mb-1 sm:mb-2 break-words">{myRentalsMode ? "My Rentals" : "Find Your Perfect Space"}</h1>
+            <p className="text-slate-400 mb-4 sm:mb-6 text-sm sm:text-base">{myRentalsMode ? "View and manage properties you are currently renting" : "Discover properties, villas, gyms, and more"}</p>
+            <div className="flex gap-2 sm:gap-3 flex-col sm:flex-row">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-slate-400" />
                 <input
-                  className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-white/95 backdrop-blur text-slate-900 placeholder-slate-400 font-medium outline-none border-none text-sm"
+                  className="w-full pl-12 pr-4 py-3 sm:py-3.5 rounded-2xl bg-white/95 backdrop-blur text-slate-900 placeholder-slate-400 font-medium outline-none border-none text-sm"
                   placeholder="Search by name, city, or address..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -320,7 +319,7 @@ export default function FindProperties({ myRentalsMode = false }) {
               </div>
               <button
                 onClick={() => setShowFilters(v => !v)}
-                className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm cursor-pointer border border-white/20 transition-colors"
+                className="flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm cursor-pointer border border-white/20 transition-colors min-h-[44px]"
               >
                 <SlidersHorizontal className="size-4" />
                 Filters

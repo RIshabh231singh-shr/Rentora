@@ -210,7 +210,7 @@ export default function Bookings() {
 
   return (
     <Layout pageTitle="My Bookings">
-      <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto overflow-x-hidden">
 
         {/* Header */}
         <div className="mb-8">
@@ -219,7 +219,7 @@ export default function Bookings() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <StatCard loading={loading} label="Active" value={totalActive} icon={<CheckCircle2 className="size-5" />} color="blue" />
           <StatCard loading={loading} label="Upcoming" value={totalUpcoming} icon={<Calendar className="size-5" />} color="green" />
           <StatCard loading={loading} label="Completed" value={totalPast} icon={<Clock className="size-5" />} color="indigo" />

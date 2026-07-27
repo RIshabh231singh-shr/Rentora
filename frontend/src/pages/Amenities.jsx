@@ -292,15 +292,15 @@ export default function Amenities() {
 
   return (
     <Layout pageTitle="Amenities">
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto overflow-x-hidden">
+        <div className="flex flex-wrap items-start sm:items-center justify-between mb-6 sm:mb-8 gap-3">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">Amenities</h1>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">Amenities</h1>
             <p className="text-slate-500 text-sm mt-1">Book slots for gym, pool, courts, and more</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <StatCard loading={loading} label="Available" value={amenities.length} icon={<Zap className="size-5" />} color="blue" />
           <StatCard loading={loading} label="My Bookings" value={totalBooked} icon={<Calendar className="size-5" />} color="indigo" />
           <StatCard loading={loading} label="Active Now" value={checkedIn} icon={<CheckCircle2 className="size-5" />} color="green" />
