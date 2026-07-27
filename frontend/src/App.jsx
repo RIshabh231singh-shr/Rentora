@@ -4,6 +4,7 @@ import { Building2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 // Auth pages (keep separate, no sidebar)
+import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
@@ -127,7 +128,7 @@ function HomeRoute() {
     setUser(s ? JSON.parse(s) : null);
   }, []);
   if (user === undefined) return null;
-  if (!user) return <LandingScreen />;
+  if (!user) return <LandingPage />;
   return <Dashboard />;
 }
 

@@ -358,20 +358,25 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
                   { label: "Settings", to: "/settings", icon: Settings },
                   { label: "Notifications", to: "/notifications", icon: Bell },
                 ].map(({ label, to, icon: Icon }) => (
-                  <Link
+                  <button
                     key={to}
-                    to={to}
-                    onClick={() => setProfileOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 no-underline"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      navigate(to);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 border-none bg-transparent cursor-pointer text-left transition-colors font-medium"
                   >
                     <Icon className="size-4 text-slate-400" />
                     {label}
-                  </Link>
+                  </button>
                 ))}
                 <hr className="my-1 border-slate-100" />
                 <button
-                  onClick={() => { setProfileOpen(false); navigate("/logout"); }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 cursor-pointer border-none bg-transparent"
+                  onClick={() => { 
+                    setProfileOpen(false); 
+                    navigate("/logout"); 
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 font-semibold hover:bg-red-50 cursor-pointer border-none bg-transparent text-left transition-colors"
                 >
                   <LogOut className="size-4" />
                   Sign Out
