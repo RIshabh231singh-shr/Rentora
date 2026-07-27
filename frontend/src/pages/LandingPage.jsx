@@ -412,7 +412,7 @@ export default function LandingPage() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.6, duration: 0.5 }}
-              className={`absolute -top-4 -right-2 sm:-top-6 sm:right-0 backdrop-blur-xl border p-3.5 sm:p-4 rounded-2xl shadow-2xl flex items-center gap-3 ${
+              className={`hidden sm:flex absolute -top-4 -right-2 sm:-top-6 sm:right-0 backdrop-blur-xl border p-3.5 sm:p-4 rounded-2xl shadow-2xl items-center gap-3 ${
                 isDark ? "bg-slate-900/90 border-slate-700/80 text-white" : "bg-white/95 border-slate-200 text-slate-900"
               }`}
             >

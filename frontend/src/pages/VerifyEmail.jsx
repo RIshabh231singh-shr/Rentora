@@ -123,7 +123,7 @@ export default function VerifyEmail() {
   if (!email) return null;
 
   return (
-    <div className="bg-zinc-50 w-screen h-screen flex flex-col justify-center items-center p-4 font-sans relative overflow-hidden">
+    <div className="bg-zinc-50 w-screen min-h-[100dvh] flex flex-col justify-center items-center p-4 font-sans relative overflow-hidden">
       {/* Background decorations */}
       <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3 w-96 h-96 bg-blue-100/50 rounded-full blur-3xl pointer-events-none animate-pulse duration-1000"></div>
       <div className="absolute bottom-0 left-0 translate-y-1/3 -translate-x-1/3 w-96 h-96 bg-teal-50/50 rounded-full blur-3xl pointer-events-none animate-pulse duration-[3000ms]"></div>

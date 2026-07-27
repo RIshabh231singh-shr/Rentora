@@ -120,7 +120,7 @@ export default function Login() {
         {/* Right form panel - fixed height, not scrollable itself */}
         <div className="w-full md:w-1/2 bg-white flex p-4 sm:p-8 justify-center items-center h-full overflow-hidden">
           {/* Card container - scrolls internally if content height exceeds viewport */}
-          <div className="max-w-md w-full border border-zinc-200 border-solid rounded-2xl p-6 sm:p-8 flex flex-col gap-6 bg-white shadow-sm max-h-[calc(100vh-2rem)] overflow-y-auto">
+          <div className="max-w-md w-full border border-zinc-200 border-solid rounded-2xl p-5 sm:p-8 flex flex-col gap-5 sm:gap-6 bg-white shadow-sm max-h-[calc(100dvh-1.5rem)] overflow-y-auto">
             
             {/* Header: Tab Switcher */}
             <div className="flex flex-col gap-6">

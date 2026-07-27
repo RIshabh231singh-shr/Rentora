@@ -180,31 +180,30 @@ export default function Dashboard() {
 
   return (
     <Layout pageTitle="Dashboard">
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto overflow-x-hidden">
 
         {/* Hero Header */}
-        <div className="relative rounded-3xl overflow-hidden mb-8 p-8 md:p-10"
+        <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden mb-6 sm:mb-8 p-5 sm:p-8 md:p-10"
           style={{ background: "linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0C1A3A 100%)" }}>
           {/* Blobs */}
-          <div className="blob w-56 h-56 bg-blue-500/20 -top-10 -right-10 animate-blob" />
-          <div className="blob w-40 h-40 bg-indigo-500/15 bottom-0 right-32 animate-blob" style={{ animationDelay: "2s" }} />
-          <div className="blob w-32 h-32 bg-cyan-500/10 top-0 left-1/2 animate-blob" style={{ animationDelay: "4s" }} />
+          <div className="blob w-40 sm:w-56 h-40 sm:h-56 bg-blue-500/20 -top-10 -right-10 animate-blob" />
+          <div className="blob w-32 sm:w-40 h-32 sm:h-40 bg-indigo-500/15 bottom-0 right-32 animate-blob" style={{ animationDelay: "2s" }} />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
             <div>
-              <p className="text-slate-400 text-sm font-medium mb-1">
+              <p className="text-slate-400 text-xs sm:text-sm font-medium mb-1">
                 {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </p>
-              <h1 className="text-3xl md:text-4xl font-extrabold text-white">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white break-words">
                 {greet()}, {user?.firstname} 👋
               </h1>
-              <p className="text-slate-400 mt-2 text-sm max-w-md">
+              <p className="text-slate-400 mt-2 text-xs sm:text-sm max-w-md">
                 {isLandlord
                   ? "Here's an overview of your properties and incoming requests today."
                   : "Here's a summary of your rentals, bookings, and maintenance."}
               </p>
             </div>
-            <div className="flex gap-3 shrink-0">
+            <div className="flex flex-wrap gap-2 sm:gap-3 shrink-0">
               <Link to="/explore">
                 <GradientButton size="md" icon={<Search className="size-4" />} className="rounded-xl">
                   Browse Properties
@@ -220,7 +219,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger-children">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8 stagger-children">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
             <StatCard loading={loading} label="Active Requests" value={stats?.activeRequests ?? 0} icon={<Wrench className="size-5" />} color="amber" change="Maintenance open" />
           </motion.div>
@@ -263,9 +262,9 @@ export default function Dashboard() {
         )}
 
         {/* Quick Actions */}
-        <GlassCard className="mb-8 p-5">
+        <GlassCard className="mb-6 sm:mb-8 p-4 sm:p-5">
           <SectionHeader title="Quick Actions" subtitle="Jump to the most common tasks" />
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
             <QuickAction icon={Search} label="Browse" to="/explore" color="bg-gradient-to-br from-blue-500 to-blue-600" />
             <QuickAction icon={Calendar} label="Bookings" to="/bookings" color="bg-gradient-to-br from-indigo-500 to-indigo-600" />
             <QuickAction icon={Wrench} label="Maintenance" to="/maintenance" color="bg-gradient-to-br from-amber-500 to-amber-600" />
