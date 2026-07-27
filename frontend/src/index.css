@@ -534,3 +534,119 @@ body {
   outline: 2px solid #2563EB;
   outline-offset: 2px;
 }
+
+/* =====================================================
+   MOBILE RESPONSIVE OVERRIDES
+   ===================================================== */
+
+/* Prevent horizontal overflow globally */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Touch-friendly tap targets */
+button, a, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Minimum touch target size */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Overflow-safe images */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Prevent word overflow */
+.break-word {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* =====================================================
+   LAYOUT: MOBILE SIDEBAR OVERLAY
+   ===================================================== */
+
+/* Mobile sidebar overlay */
+.sidebar-mobile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  z-index: 49;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* =====================================================
+   RESPONSIVE BREAKPOINT OVERRIDES
+   ===================================================== */
+
+/* On mobile (< 1024px): topbar spans full width, main-content fills screen */
+@media (max-width: 1023px) {
+  .topbar {
+    left: 0 !important;
+    right: 0;
+    padding: 0 16px;
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+  }
+
+  /* Sidebar tooltips hidden on mobile — no hover */
+  .sidebar-tooltip {
+    display: none !important;
+  }
+
+  /* Ensure content doesn't get clipped */
+  .page-enter {
+    overflow-x: hidden;
+  }
+}
+
+/* Small mobile: tighter padding */
+@media (max-width: 480px) {
+  .topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+}
+
+/* =====================================================
+   TABLE RESPONSIVE
+   ===================================================== */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* =====================================================
+   KANBAN — stack on mobile
+   ===================================================== */
+@media (max-width: 767px) {
+  .kanban-col {
+    min-height: 200px;
+  }
+}
+
+/* =====================================================
+   NOTIFICATIONS DROPDOWN — mobile safe
+   ===================================================== */
+@media (max-width: 479px) {
+  /* Notification panel full-width on very small screens */
+  .notif-panel-mobile {
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    top: 68px !important;
+    width: auto !important;
+  }
+}

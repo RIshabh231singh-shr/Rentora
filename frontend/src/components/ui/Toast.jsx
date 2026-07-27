@@ -3,16 +3,17 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export function Toast({ toasts, onDismiss }) {
   return (
-    <div className="fixed top-5 right-5 z-[300] flex flex-col gap-3 pointer-events-none">
+    // Mobile: bottom-center full-width. Desktop: top-right fixed width
+    <div className="fixed bottom-4 left-3 right-3 sm:top-5 sm:right-5 sm:left-auto sm:bottom-auto z-[300] flex flex-col gap-2 sm:gap-3 pointer-events-none sm:max-w-sm w-auto">
       <AnimatePresence>
         {toasts.map(t => (
           <motion.div
             key={t.id}
-            initial={{ opacity: 0, x: 60, scale: 0.9 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 60, scale: 0.9 }}
+            initial={{ opacity: 0, y: 20, scale: 0.92 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.92 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            className={`pointer-events-auto flex items-start gap-3 bg-white rounded-2xl p-4 shadow-xl border max-w-sm w-full ${
+            className={`pointer-events-auto flex items-start gap-3 bg-white rounded-2xl p-4 shadow-xl border w-full ${
               t.type === "success" ? "border-emerald-200" :
               t.type === "error"   ? "border-red-200" :
               "border-slate-100"
@@ -37,12 +38,13 @@ export function Toast({ toasts, onDismiss }) {
                 </svg>
               )}
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               {t.title && <p className="font-semibold text-slate-900 text-sm">{t.title}</p>}
               <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">{t.message}</p>
             </div>
             <button
               onClick={() => onDismiss?.(t.id)}
+              aria-label="Dismiss notification"
               className="size-6 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 cursor-pointer border-none shrink-0"
             >
               <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

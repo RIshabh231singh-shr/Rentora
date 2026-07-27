@@ -1,10 +1,10 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Building2, Search, Wrench, Zap, Calendar,
   Bell, MessageSquare, User, Settings, LogOut, ChevronLeft,
-  ChevronRight, Home, ShieldCheck, ChevronDown
+  ChevronRight, Home, ShieldCheck, ChevronDown, Menu, X
 } from "lucide-react";
 import { Avatar, Toast, Modal, GradientButton } from "./ui";
 import { io } from "socket.io-client";
@@ -15,7 +15,7 @@ import { dashboardService } from "../services/dashboardService";
 /* ===================================================
    SIDEBAR CONTEXT
    =================================================== */
-const SidebarCtx = createContext({ collapsed: false, toggle: () => {} });
+const SidebarCtx = createContext({ collapsed: false, toggle: () => {}, mobileOpen: false, setMobileOpen: () => {} });
 export const useSidebar = () => useContext(SidebarCtx);
 
 /* ===================================================
@@ -73,12 +73,34 @@ const buildNav = (role) => [
    SIDEBAR COMPONENT
    =================================================== */
 function Sidebar({ user, onLogout, notifCount }) {
-  const { collapsed, toggle } = useSidebar();
+  const { collapsed, toggle, mobileOpen, setMobileOpen } = useSidebar();
   const location = useLocation();
   const nav = buildNav(user?.role);
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [requestedRole, setRequestedRole] = useState("landlord");
   const [loadingRole, setLoadingRole] = useState(false);
+
+  // Close mobile sidebar on Escape key
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape" && mobileOpen) setMobileOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen, setMobileOpen]);
+
+  // Disable body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
+
+  const handleNavClick = () => {
+    // Auto-close mobile sidebar on nav item click
+    setMobileOpen(false);
+  };
 
   const handleRequestRole = async () => {
     setLoadingRole(true);
@@ -94,12 +116,13 @@ function Sidebar({ user, onLogout, notifCount }) {
     }
   };
 
-  return (
+  // DESKTOP sidebar (>= 1024px) — collapsible, permanent
+  const DesktopSidebar = (
     <motion.aside
       initial={false}
       animate={{ width: collapsed ? 72 : 240 }}
       transition={{ type: "spring", damping: 30, stiffness: 300 }}
-      className="fixed left-0 top-0 h-screen z-50 glass-dark flex flex-col overflow-hidden"
+      className="fixed left-0 top-0 h-screen z-50 glass-dark flex-col overflow-hidden hidden lg:flex"
     >
       {/* Logo */}
       <div className={`flex items-center h-[60px] px-4 border-b border-white/5 shrink-0 ${collapsed ? "justify-center" : "gap-3"}`}>
@@ -220,8 +243,146 @@ function Sidebar({ user, onLogout, notifCount }) {
           )}
         </div>
       </Modal>
-
     </motion.aside>
+  );
+
+  // MOBILE sidebar (< 1024px) — full-width slide-over drawer
+  const MobileSidebar = (
+    <AnimatePresence>
+      {mobileOpen && (
+        <>
+          {/* Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="sidebar-mobile-overlay lg:hidden"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+          {/* Drawer */}
+          <motion.aside
+            initial={{ x: "-100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-100%" }}
+            transition={{ type: "spring", damping: 32, stiffness: 350 }}
+            className="fixed left-0 top-0 h-screen w-72 z-50 glass-dark flex flex-col overflow-hidden lg:hidden"
+          >
+            {/* Logo + Close */}
+            <div className="flex items-center justify-between h-[60px] px-4 border-b border-white/5 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="size-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0">
+                  <Building2 className="size-4 text-white" />
+                </div>
+                <span className="text-white font-bold text-lg tracking-tight">Rentora</span>
+              </div>
+              <button
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close navigation menu"
+                className="size-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer border-none transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Nav */}
+            <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2 flex flex-col gap-0.5" role="navigation" aria-label="Main navigation">
+              {nav.map((group) => (
+                <div key={group.section} className="mb-2">
+                  <p className="nav-section-header mb-1">{group.section}</p>
+                  {group.items.map((item) => {
+                    const isActive = location.pathname === item.to || (item.to !== "/" && location.pathname.startsWith(item.to));
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        className={`nav-item relative group ${isActive ? "active" : ""}`}
+                        onClick={handleNavClick}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        <item.icon className="size-4 shrink-0" />
+                        <span>{item.label}</span>
+                        {item.to === "/notifications" && notifCount > 0 && (
+                          <span className="ml-auto inline-flex items-center justify-center size-4 rounded-full bg-red-500 text-white text-[9px] font-bold">
+                            {notifCount > 9 ? "9+" : notifCount}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
+
+            {/* User + Logout */}
+            <div className="p-2 border-t border-white/5 shrink-0">
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1">
+                <Avatar name={`${user?.firstname} ${user?.lastname}`} size="sm" src={user?.profilePicture} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-semibold truncate">{user?.firstname} {user?.lastname}</p>
+                  <p className="text-slate-400 text-[11px] capitalize">{user?.role}</p>
+                </div>
+              </div>
+
+              {user?.role !== "admin" && (
+                <button
+                  onClick={() => { setRoleModalOpen(true); setMobileOpen(false); }}
+                  className="nav-item w-full text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                >
+                  <ShieldCheck className="size-4 shrink-0" />
+                  <span>{user?.requestedRole ? "Role Requested" : "Request Role"}</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => { setMobileOpen(false); onLogout(); }}
+                className="nav-item w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 mt-1"
+              >
+                <LogOut className="size-4 shrink-0" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
+
+  return (
+    <>
+      {DesktopSidebar}
+      {MobileSidebar}
+      <Modal open={roleModalOpen && !mobileOpen} onClose={() => setRoleModalOpen(false)} title="Request Role Change" width="max-w-md">
+        <div className="flex flex-col gap-4">
+          {user?.requestedRole ? (
+            <div className="p-4 bg-blue-50 text-blue-700 rounded-xl text-sm border border-blue-100">
+              You already have a pending request for: <strong>{user.requestedRole}</strong>.
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600">
+                Select the role you would like to request. An admin will review and approve your request.
+              </p>
+              <select
+                value={requestedRole}
+                onChange={e => setRequestedRole(e.target.value)}
+                className="form-input text-slate-800 bg-white"
+              >
+                {user?.role !== "landlord" && <option value="landlord">Landlord</option>}
+                {user?.role !== "maintenance_staff" && <option value="maintenance_staff">Maintenance Staff</option>}
+                {user?.role !== "admin" && <option value="admin">Admin</option>}
+              </select>
+              <div className="flex gap-3 pt-2 mt-2 border-t border-slate-100">
+                <GradientButton onClick={handleRequestRole} loading={loadingRole} className="w-full">
+                  Submit Request
+                </GradientButton>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+    </>
   );
 }
 
@@ -231,7 +392,7 @@ function Sidebar({ user, onLogout, notifCount }) {
 function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissToast, onRoleAction }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const { collapsed } = useSidebar();
+  const { collapsed, mobileOpen, setMobileOpen } = useSidebar();
   const navigate = useNavigate();
   const unread = notifications.filter(n => n.status === "unread");
 
@@ -248,14 +409,25 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
         className="topbar"
         style={{ left: collapsed ? 72 : 240 }}
       >
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="lg:hidden size-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 cursor-pointer border-none transition-colors shrink-0"
+          aria-label="Open navigation menu"
+          aria-expanded={mobileOpen}
+        >
+          <Menu className="size-4" />
+        </button>
+
         {/* Page Title */}
-        <h1 className="text-sm font-semibold text-slate-700 flex-1">{pageTitle}</h1>
+        <h1 className="text-sm font-semibold text-slate-700 flex-1 truncate">{pageTitle}</h1>
 
         {/* Notifications */}
         <div className="relative">
           <button
             onClick={handleNotifClick}
             className="size-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 relative cursor-pointer border-none transition-colors"
+            aria-label={`Notifications${unread.length > 0 ? `, ${unread.length} unread` : ""}`}
           >
             <Bell className="size-4" />
             {unread.length > 0 && (
@@ -271,7 +443,7 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -8, scale: 0.96 }}
                 transition={{ duration: 0.15 }}
-                className="absolute right-0 top-11 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[100] overflow-hidden"
+                className="absolute right-0 top-11 w-80 max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-slate-100 z-[100] overflow-hidden notif-panel-mobile"
               >
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
                   <span className="font-bold text-slate-900 text-sm">Notifications</span>
@@ -285,7 +457,7 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
                     View all
                   </button>
                 </div>
-                <div className="max-h-96 overflow-y-auto custom-scrollbar">
+                <div className="max-h-80 overflow-y-auto">
                   {notifications.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-8">No notifications yet</p>
                   ) : (
@@ -301,8 +473,8 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
                             navigate("/notifications");
                           }}
                         >
-                          <p className="text-sm font-semibold text-slate-900">{n.title}</p>
-                          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{n.message}</p>
+                          <p className="text-sm font-semibold text-slate-900 break-words">{n.title}</p>
+                          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed break-words">{n.message}</p>
                           <p className="text-[10px] text-slate-400 mt-1">{new Date(n.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                         </div>
                         
@@ -310,13 +482,13 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
                           <div className="flex gap-2 mt-2">
                             <button 
                               onClick={(e) => { e.stopPropagation(); onRoleAction(n.relatedUser, "approve"); }}
-                              className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 transition-colors border-none cursor-pointer"
+                              className="px-3 py-1.5 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 transition-colors border-none cursor-pointer min-h-[36px]"
                             >
                               Approve
                             </button>
                             <button 
                               onClick={(e) => { e.stopPropagation(); onRoleAction(n.relatedUser, "reject"); }}
-                              className="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors border-none cursor-pointer"
+                              className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors border-none cursor-pointer min-h-[36px]"
                             >
                               Reject
                             </button>
@@ -335,7 +507,9 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
         <div className="relative">
           <button
             onClick={() => setProfileOpen(v => !v)}
-            className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-slate-100 cursor-pointer border-none bg-transparent transition-colors"
+            className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-xl hover:bg-slate-100 cursor-pointer border-none bg-transparent transition-colors"
+            aria-label="User profile menu"
+            aria-expanded={profileOpen}
           >
             <Avatar name={`${user?.firstname} ${user?.lastname}`} size="sm" src={user?.profilePicture} />
             <div className="hidden sm:block text-left">
@@ -364,7 +538,7 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
                       setProfileOpen(false);
                       navigate(to);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 border-none bg-transparent cursor-pointer text-left transition-colors font-medium"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 border-none bg-transparent cursor-pointer text-left transition-colors font-medium min-h-[44px]"
                   >
                     <Icon className="size-4 text-slate-400" />
                     {label}
@@ -376,7 +550,7 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
                     setProfileOpen(false); 
                     navigate("/logout"); 
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 font-semibold hover:bg-red-50 cursor-pointer border-none bg-transparent text-left transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 font-semibold hover:bg-red-50 cursor-pointer border-none bg-transparent text-left transition-colors min-h-[44px]"
                 >
                   <LogOut className="size-4" />
                   Sign Out
@@ -406,6 +580,7 @@ function Topbar({ user, pageTitle, notifications, onMarkRead, toasts, onDismissT
    =================================================== */
 export default function Layout({ children, pageTitle = "Rentora" }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [toasts, setToasts] = useState([]);
@@ -507,7 +682,7 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
   if (!user) return null;
 
   return (
-    <SidebarCtx.Provider value={{ collapsed, toggle }}>
+    <SidebarCtx.Provider value={{ collapsed, toggle, mobileOpen, setMobileOpen }}>
       <div className="min-h-screen bg-mesh-gradient">
         <Sidebar
           user={user}
@@ -533,7 +708,7 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
-            className="min-h-[calc(100vh-60px)]"
+            className="min-h-[calc(100vh-60px)] overflow-x-hidden"
           >
             {children}
           </motion.div>
