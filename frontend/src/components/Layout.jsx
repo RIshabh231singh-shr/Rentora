@@ -445,7 +445,7 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
 
   useEffect(() => {
     if (!user) return;
-    const socketUrl = import.meta.env.VITE_API_BASE_URL || 
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE_URL || 
       (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" 
         ? "https://rentora-xonw.onrender.com" 
         : "http://localhost:5000");
