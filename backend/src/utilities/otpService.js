@@ -3,6 +3,9 @@ const bcrypt = require("bcrypt");
 const redisClient = require("../config/redis");
 const transporter = require("../config/nodemailer");
 
+// In-memory fallback map when Redis is offline
+const inMemoryOtpStore = new Map();
+
 /**
  * Generate a 6-digit numeric OTP.
  */
@@ -39,7 +42,7 @@ async function sendOtpEmail(email, otp) {
     }
     const sendMailPromise = transporter.sendMail(mailOptions);
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Email send timed out (5s)")), 5000)
+      setTimeout(() => reject(new Error("Email send timed out (15s)")), 15000)
     );
     const info = await Promise.race([sendMailPromise, timeoutPromise]);
     console.log(`[OTP Service] Verification email successfully sent to ${email}`);
@@ -47,54 +50,84 @@ async function sendOtpEmail(email, otp) {
     return true;
   } catch (error) {
     console.error(`[OTP Service] Failed to send email to ${email}:`, error.message);
-    console.warn("\n==================================================");
-    console.warn(`[OTP Service] Local Testing Fallback - Email not sent.`);
-    console.warn(`Verification OTP for ${email}: ${otp}`);
-    console.warn("==================================================\n");
     return false;
   }
 }
 
 /**
- * Save OTP to Redis (Hashed).
+ * Save OTP to Redis or in-memory store.
  */
 async function saveOtp(email, otp) {
-  if (!redisClient.isOpen) {
-    throw new Error("Security service unavailable: Redis server is offline. Cannot process OTP verification.");
-  }
   const normalizedEmail = email.toLowerCase().trim();
   const key = `otp:${normalizedEmail}`;
   const hashedOtp = await bcrypt.hash(otp, 10);
-  
-  const attemptsKey = `otp_attempts:${normalizedEmail}`;
-  await redisClient.set(key, hashedOtp, { EX: 600 }); // Valid for 10 minutes
-  await redisClient.del(attemptsKey);
+
+  if (redisClient.isOpen) {
+    try {
+      await redisClient.set(key, hashedOtp, { EX: 600 });
+      const attemptsKey = `otp_attempts:${normalizedEmail}`;
+      await redisClient.del(attemptsKey);
+      return;
+    } catch (err) {
+      console.error("[OTP Service] Redis error, saving to memory fallback:", err.message);
+    }
+  }
+
+  // Memory fallback
+  inMemoryOtpStore.set(normalizedEmail, {
+    hashedOtp,
+    expiresAt: Date.now() + 600 * 1000,
+    attempts: 0,
+  });
 }
 
 /**
- * Verify OTP from Redis, with Attempt Limit.
- * Returns true if valid, false if invalid, or throws error if locked out or Redis offline.
+ * Verify OTP from Redis or in-memory store.
  */
 async function verifyOtpValue(email, otp) {
-  if (!redisClient.isOpen) {
-    throw new Error("Security service unavailable: Redis server is offline. Cannot verify OTP.");
-  }
   const normalizedEmail = email.toLowerCase().trim();
   const key = `otp:${normalizedEmail}`;
   const attemptsKey = `otp_attempts:${normalizedEmail}`;
-  
-  const hashedOtp = await redisClient.get(key);
-  if (!hashedOtp) return false;
 
-  const isValid = await bcrypt.compare(otp, hashedOtp);
+  if (redisClient.isOpen) {
+    try {
+      const hashedOtp = await redisClient.get(key);
+      if (hashedOtp) {
+        const isValid = await bcrypt.compare(otp, hashedOtp);
+        if (isValid) {
+          return true;
+        } else {
+          const attempts = await redisClient.incr(attemptsKey);
+          if (attempts === 1) await redisClient.expire(attemptsKey, 600);
+          if (attempts >= 5) {
+            await redisClient.del(key);
+            await redisClient.del(attemptsKey);
+            throw new Error("Too many failed attempts. OTP has been invalidated. Please request a new one.");
+          }
+          return false;
+        }
+      }
+    } catch (err) {
+      if (err.message.includes("Too many failed attempts")) throw err;
+      console.error("[OTP Service] Redis error, checking memory fallback:", err.message);
+    }
+  }
+
+  // Check in-memory store
+  const record = inMemoryOtpStore.get(normalizedEmail);
+  if (!record) return false;
+  if (Date.now() > record.expiresAt) {
+    inMemoryOtpStore.delete(normalizedEmail);
+    return false;
+  }
+
+  const isValid = await bcrypt.compare(otp, record.hashedOtp);
   if (isValid) {
     return true;
   } else {
-    const attempts = await redisClient.incr(attemptsKey);
-    if (attempts === 1) await redisClient.expire(attemptsKey, 600);
-    if (attempts >= 5) {
-      await redisClient.del(key);
-      await redisClient.del(attemptsKey);
+    record.attempts += 1;
+    if (record.attempts >= 5) {
+      inMemoryOtpStore.delete(normalizedEmail);
       throw new Error("Too many failed attempts. OTP has been invalidated. Please request a new one.");
     }
     return false;
@@ -102,15 +135,22 @@ async function verifyOtpValue(email, otp) {
 }
 
 /**
- * Delete OTP from Redis.
+ * Delete OTP from Redis and memory store.
  */
 async function deleteOtp(email) {
-  if (!redisClient.isOpen) return;
   const normalizedEmail = email.toLowerCase().trim();
   const key = `otp:${normalizedEmail}`;
   const attemptsKey = `otp_attempts:${normalizedEmail}`;
-  await redisClient.del(key);
-  await redisClient.del(attemptsKey);
+  inMemoryOtpStore.delete(normalizedEmail);
+
+  if (redisClient.isOpen) {
+    try {
+      await redisClient.del(key);
+      await redisClient.del(attemptsKey);
+    } catch (err) {
+      console.error("[OTP Service] Redis deleteOtp error:", err.message);
+    }
+  }
 }
 
 /**
@@ -142,7 +182,7 @@ async function sendResetPasswordEmail(email, otp) {
     }
     const sendMailPromise = transporter.sendMail(mailOptions);
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Email send timed out (5s)")), 5000)
+      setTimeout(() => reject(new Error("Email send timed out (15s)")), 15000)
     );
     const info = await Promise.race([sendMailPromise, timeoutPromise]);
     console.log(`[OTP Service] Password reset email successfully sent to ${email}`);
@@ -150,10 +190,6 @@ async function sendResetPasswordEmail(email, otp) {
     return true;
   } catch (error) {
     console.error(`[OTP Service] Failed to send email to ${email}:`, error.message);
-    console.warn("\n==================================================");
-    console.warn(`[OTP Service] Local Testing Fallback - Reset Email not sent.`);
-    console.warn(`Reset OTP for ${email}: ${otp}`);
-    console.warn("==================================================\n");
     return false;
   }
 }

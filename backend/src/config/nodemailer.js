@@ -4,9 +4,9 @@ const env = require("./env");
 let transporter;
 
 const timeoutOptions = {
-  connectionTimeout: 5000,
-  greetingTimeout: 5000,
-  socketTimeout: 5000,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 15000,
 };
 
 if (process.env.EMAIL_HOST) {
