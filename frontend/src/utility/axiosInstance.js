@@ -29,9 +29,12 @@ api.interceptors.response.use(
                 // Retry the original request
                 return api(originalRequest);
             } catch (refreshError) {
-                // If refresh fails, clear storage and redirect to login
+                // If refresh fails, clear storage and redirect to login only if not already on public auth pages
                 localStorage.removeItem("user");
-                window.location.href = '/login';
+                const publicPaths = ['/login', '/register', '/verify-email', '/forgot-password'];
+                if (!publicPaths.includes(window.location.pathname)) {
+                    window.location.href = '/login';
+                }
                 return Promise.reject(refreshError);
             }
         }

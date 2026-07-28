@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Wrench, Calendar, Building2, Home, ArrowRight, Clock,
@@ -126,6 +126,7 @@ function PropertyRentalCard({ property }) {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [kpi, setKpi] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -296,7 +297,7 @@ export default function Dashboard() {
                   icon={<Calendar className="size-8" />}
                   title="No upcoming bookings"
                   description="Book a property or amenity to see it here"
-                  action={() => window.location.href = "/explore"}
+                  action={() => navigate("/explore")}
                   actionLabel="Browse Properties"
                 />
               ) : (
@@ -395,7 +396,7 @@ export default function Dashboard() {
                   icon={<Wrench className="size-6" />}
                   title="No requests yet"
                   description="Submit a maintenance request when needed"
-                  action={() => window.location.href = "/maintenance"}
+                  action={() => navigate("/maintenance")}
                   actionLabel="Create Request"
                 />
               ) : (

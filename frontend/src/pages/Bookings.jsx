@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar, Clock, Building2, Zap, ChevronDown, X,
@@ -157,6 +158,7 @@ function BookingDetailModal({ booking, open, onClose }) {
 const TABS = ["all", "upcoming", "active", "past", "cancelled"];
 
 export default function Bookings() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -255,7 +257,7 @@ export default function Bookings() {
             icon={<Calendar className="size-8" />}
             title={`No ${tab === "all" ? "" : tab} bookings`}
             description={tab === "all" ? "Book a property or amenity to see your reservations here" : `You have no ${tab} bookings`}
-            action={tab === "all" ? () => window.location.href = "/explore" : undefined}
+            action={tab === "all" ? () => navigate("/explore") : undefined}
             actionLabel="Browse Properties"
           />
         ) : (
