@@ -8,8 +8,11 @@ const slidingWindowRateLimit = ({
 } = {}) => {
     return async (req, res, next) => {
         if (!redisClient.isOpen) {
-            console.warn("[RateLimit] Redis not connected — skipping rate limit check.");
-            return next();
+            console.error("[RateLimit] Security error: Redis server is offline.");
+            return res.status(503).json({
+                success: false,
+                message: "Security service temporarily unavailable. System protection requires active cache services.",
+            });
         }
 
         // Key: IP address + optional route prefix
@@ -50,7 +53,10 @@ const slidingWindowRateLimit = ({
             next();
         } catch (err) {
             console.error("[RateLimit] Redis error:", err.message);
-            next();
+            return res.status(503).json({
+                success: false,
+                message: "Security rate-limiter service unavailable. Request blocked for system protection.",
+            });
         }
     };
 };

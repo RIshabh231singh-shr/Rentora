@@ -11,7 +11,7 @@ function generateOtp() {
 }
 
 /**
- * Send OTP via email.
+ * Send OTP via email with strict 5s timeout and fallback logging.
  */
 async function sendOtpEmail(email, otp) {
   const mailOptions = {
@@ -37,17 +37,20 @@ async function sendOtpEmail(email, otp) {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       throw new Error("SMTP credentials are not configured in environment variables.");
     }
-    const info = await transporter.sendMail(mailOptions);
+    const sendMailPromise = transporter.sendMail(mailOptions);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Email send timed out (5s)")), 5000)
+    );
+    const info = await Promise.race([sendMailPromise, timeoutPromise]);
     console.log(`[OTP Service] Verification email successfully sent to ${email}`);
     console.log(`[OTP Service] SMTP Response: ${info.response}`);
     return true;
   } catch (error) {
     console.error(`[OTP Service] Failed to send email to ${email}:`, error.message);
-    // Log the OTP locally for testing
-    console.warn("\\n==================================================");
+    console.warn("\n==================================================");
     console.warn(`[OTP Service] Local Testing Fallback - Email not sent.`);
     console.warn(`Verification OTP for ${email}: ${otp}`);
-    console.warn("==================================================\\n");
+    console.warn("==================================================\n");
     return false;
   }
 }
@@ -56,22 +59,29 @@ async function sendOtpEmail(email, otp) {
  * Save OTP to Redis (Hashed).
  */
 async function saveOtp(email, otp) {
-  const key = `otp:${email.toLowerCase().trim()}`;
+  if (!redisClient.isOpen) {
+    throw new Error("Security service unavailable: Redis server is offline. Cannot process OTP verification.");
+  }
+  const normalizedEmail = email.toLowerCase().trim();
+  const key = `otp:${normalizedEmail}`;
   const hashedOtp = await bcrypt.hash(otp, 10);
-  await redisClient.set(key, hashedOtp, { EX: 600 }); // Valid for 10 minutes
   
-  // Reset attempts when a new OTP is generated
-  const attemptsKey = `otp_attempts:${email.toLowerCase().trim()}`;
+  const attemptsKey = `otp_attempts:${normalizedEmail}`;
+  await redisClient.set(key, hashedOtp, { EX: 600 }); // Valid for 10 minutes
   await redisClient.del(attemptsKey);
 }
 
 /**
  * Verify OTP from Redis, with Attempt Limit.
- * Returns true if valid, false if invalid, or throws error if locked out.
+ * Returns true if valid, false if invalid, or throws error if locked out or Redis offline.
  */
 async function verifyOtpValue(email, otp) {
-  const key = `otp:${email.toLowerCase().trim()}`;
-  const attemptsKey = `otp_attempts:${email.toLowerCase().trim()}`;
+  if (!redisClient.isOpen) {
+    throw new Error("Security service unavailable: Redis server is offline. Cannot verify OTP.");
+  }
+  const normalizedEmail = email.toLowerCase().trim();
+  const key = `otp:${normalizedEmail}`;
+  const attemptsKey = `otp_attempts:${normalizedEmail}`;
   
   const hashedOtp = await redisClient.get(key);
   if (!hashedOtp) return false;
@@ -81,9 +91,7 @@ async function verifyOtpValue(email, otp) {
     return true;
   } else {
     const attempts = await redisClient.incr(attemptsKey);
-    // Set expiry for attempts key just in case to match OTP expiry
     if (attempts === 1) await redisClient.expire(attemptsKey, 600);
-    
     if (attempts >= 5) {
       await redisClient.del(key);
       await redisClient.del(attemptsKey);
@@ -97,14 +105,16 @@ async function verifyOtpValue(email, otp) {
  * Delete OTP from Redis.
  */
 async function deleteOtp(email) {
-  const key = `otp:${email.toLowerCase().trim()}`;
-  const attemptsKey = `otp_attempts:${email.toLowerCase().trim()}`;
+  if (!redisClient.isOpen) return;
+  const normalizedEmail = email.toLowerCase().trim();
+  const key = `otp:${normalizedEmail}`;
+  const attemptsKey = `otp_attempts:${normalizedEmail}`;
   await redisClient.del(key);
   await redisClient.del(attemptsKey);
 }
 
 /**
- * Send Reset Password OTP via email.
+ * Send Reset Password OTP via email with strict 5s timeout.
  */
 async function sendResetPasswordEmail(email, otp) {
   const mailOptions = {
@@ -130,16 +140,20 @@ async function sendResetPasswordEmail(email, otp) {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       throw new Error("SMTP credentials are not configured in environment variables.");
     }
-    const info = await transporter.sendMail(mailOptions);
+    const sendMailPromise = transporter.sendMail(mailOptions);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Email send timed out (5s)")), 5000)
+    );
+    const info = await Promise.race([sendMailPromise, timeoutPromise]);
     console.log(`[OTP Service] Password reset email successfully sent to ${email}`);
     console.log(`[OTP Service] SMTP Response: ${info.response}`);
     return true;
   } catch (error) {
     console.error(`[OTP Service] Failed to send email to ${email}:`, error.message);
-    console.warn("\\n==================================================");
+    console.warn("\n==================================================");
     console.warn(`[OTP Service] Local Testing Fallback - Reset Email not sent.`);
     console.warn(`Reset OTP for ${email}: ${otp}`);
-    console.warn("==================================================\\n");
+    console.warn("==================================================\n");
     return false;
   }
 }

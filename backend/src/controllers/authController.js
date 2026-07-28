@@ -28,7 +28,10 @@ const registerUser = async (req, res) => {
             
             const otp = generateOtp();
             await saveOtp(email, otp);
-            await sendOtpEmail(email, otp);
+            const emailSent = await sendOtpEmail(email, otp);
+            if (!emailSent) {
+                throw new Error("Failed to send verification OTP email. Please check server SMTP configuration or try again later.");
+            }
             
             return res.status(200).json({
                 requiresVerification: true,
@@ -44,7 +47,10 @@ const registerUser = async (req, res) => {
 
         const otp = generateOtp();
         await saveOtp(email, otp);
-        await sendOtpEmail(email, otp);
+        const emailSent = await sendOtpEmail(email, otp);
+        if (!emailSent) {
+            throw new Error("Failed to send verification OTP email. Please check server SMTP configuration or try again later.");
+        }
 
         return res.status(201).json({
             requiresVerification: true,
@@ -80,7 +86,10 @@ const loginUser = async (req, res) => {
         if (!user.isVerified) {
             const otp = generateOtp();
             await saveOtp(email, otp);
-            await sendOtpEmail(email, otp);
+            const emailSent = await sendOtpEmail(email, otp);
+            if (!emailSent) {
+                throw new Error("Failed to send verification OTP email. Please check server SMTP configuration or try again later.");
+            }
             return res.status(403).json({
                 requiresVerification: true,
                 email: user.email,
@@ -274,15 +283,27 @@ const resendOtp = async (req, res) => {
         }
 
         const cooldownKey = `otp_cooldown:${email.toLowerCase().trim()}`;
-        const isOnCooldown = await redisClient.get(cooldownKey);
-        if (isOnCooldown) {
-            return res.status(429).json({ message: "Please wait 60 seconds before requesting a new OTP." });
+        if (redisClient.isOpen) {
+            try {
+                const isOnCooldown = await redisClient.get(cooldownKey);
+                if (isOnCooldown) {
+                    return res.status(429).json({ message: "Please wait 60 seconds before requesting a new OTP." });
+                }
+            } catch (err) {
+                console.error("[AuthController] Redis cooldown get error:", err.message);
+            }
         }
 
         const otp = generateOtp();
         await saveOtp(email, otp);
         await sendOtpEmail(email, otp);
-        await redisClient.set(cooldownKey, "active", { EX: 60 });
+        if (redisClient.isOpen) {
+            try {
+                await redisClient.set(cooldownKey, "active", { EX: 60 });
+            } catch (err) {
+                console.error("[AuthController] Redis cooldown set error:", err.message);
+            }
+        }
 
         return res.status(200).json({
             message: "Verification OTP resent successfully",
