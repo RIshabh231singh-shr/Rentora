@@ -70,6 +70,37 @@ Rentora introduces a unified real-time dashboard powered by **React 19**, **Expr
 | 🧑‍💼 **Tenant** | `tenant@rentora.com` | `Tenant@123` | Property search, amenity booking, maintenance logging, chat |
 | 🛠️ **Staff** | `staff@rentora.com` | `Staff@123` | Assigned maintenance tickets management & status updates |
 
+### 🛠️ Production Issue & Resolution: Netlify SPA Routing (404 Error Fix)
+
+> [!NOTE]
+> **Issue Identified**: Direct access to sub-routes (e.g. `https://rentora231.netlify.app/login`, `/register`, `/dashboard`) or page refreshes (F5) returned Netlify's **404 Page Not Found** error screen. Additionally, during authentication or Google login/registration, an automated Axios 401 interceptor triggered hard reloads (`window.location.href`), resulting in a 1–2 second UI freeze and broken links.
+
+#### 🚨 Root Cause
+1. **Netlify Static File Lookup**: Netlify defaults to static routing. On accessing deep paths like `/login`, Netlify attempts to load `/login/index.html`. Since React Router handles routing dynamically in a Single Page Application (SPA), Netlify fails to find a physical file and returns a 404 page.
+2. **Forced Hard Reloads**: The Axios response interceptor executed `window.location.href = '/login'` whenever an unauthenticated API call or refresh token check failed. When triggered while on public routes (like `/login` or `/register`), this forced a full browser reload that hit Netlify's 404 route handler.
+
+#### 🔧 How It Was Resolved
+1. **Netlify SPA 200 Rewrite Rules**:
+   - Created `frontend/public/_redirects` containing:
+     ```text
+     /*    /index.html   200
+     ```
+   - Created `frontend/netlify.toml` and root `netlify.toml` containing:
+     ```toml
+     [[redirects]]
+       from = "/*"
+       to = "/index.html"
+       status = 200
+     ```
+   - *Effect*: Configures Netlify to redirect all non-file route requests to `index.html` with an HTTP status `200`, delegating route resolution to React Router.
+
+2. **Smart Axios 401 Interceptor**:
+   - Updated `frontend/src/utility/axiosInstance.js` to inspect `window.location.pathname` before redirecting.
+   - Bypassed automatic login redirection if the current route is already a public authentication page (`/login`, `/register`, `/verify-email`, `/forgot-password`).
+
+3. **Client-Side React Router Navigation**:
+   - Replaced all legacy `window.location.href` invocations in `Dashboard.jsx` and `Bookings.jsx` with React Router's native `useNavigate()` hook to preserve client state and avoid full reloads.
+
 ---
 
 ## 📸 Screenshots
