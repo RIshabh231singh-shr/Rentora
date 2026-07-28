@@ -25,7 +25,7 @@ api.interceptors.response.use(
             originalRequest._retry = true;
             try {
                 // Call the refresh endpoint to get a new access token
-                await api.post('/auth/refresh');
+                await api.post('/api/auth/refresh');
                 // Retry the original request
                 return api(originalRequest);
             } catch (refreshError) {

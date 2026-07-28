@@ -2,7 +2,7 @@ const redisClient = require("../config/redis");
 
 const slidingWindowRateLimit = ({
     windowMs = 60 * 1000,
-    max = 20,
+    max = 100,
     keyPrefix = "rl:",
     message = "Too many requests, please slow down and try again later.",
 } = {}) => {

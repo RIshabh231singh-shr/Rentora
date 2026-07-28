@@ -20,21 +20,21 @@ const slidingWindowRateLimit = require("../middleware/rateLimiter");
 // ── Rate limiters (Redis Sliding Window) ──────────────────────────
 const strictLimiter = slidingWindowRateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5,
+    max: 50,
     keyPrefix: "rl:auth:strict:",
-    message: "Too many authentication attempts. Please wait 15 minutes before trying again.",
+    message: "Too many authentication attempts. Please wait before trying again.",
 });
 
 const otpLimiter = slidingWindowRateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
+    max: 50,
     keyPrefix: "rl:auth:otp:",
     message: "Too many OTP requests. Please wait before requesting a new OTP.",
 });
 
 const refreshLimiter = slidingWindowRateLimit({
     windowMs: 60 * 1000,
-    max: 30,
+    max: 150,
     keyPrefix: "rl:auth:refresh:",
     message: "Too many token refresh attempts.",
 });
