@@ -29,3 +29,7 @@ internship_report/
 # temporary files
 *.tmp
 *.temp
+
+# seed script files
+seedAdmin.js
+scripts/seedAdmin.js

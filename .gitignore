@@ -22,3 +22,8 @@ internship_report/
 Thumbs.db
 .vscode/
 .idea/
+
+# seed script files
+seedAdmin.js
+backend/seedAdmin.js
+backend/scripts/seedAdmin.js
