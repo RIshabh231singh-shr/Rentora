@@ -11,8 +11,8 @@ const getContacts = async (req, res) => {
         let contactIds = new Set();
         
         if (role === 'tenant') {
-            // Find properties the tenant has booked
-            const bookings = await Booking.find({ user: userId, status: { $in: ["booked", "checked_in", "completed"] } }).populate('property');
+            // Find properties the tenant has booked or requested
+            const bookings = await Booking.find({ user: userId, status: { $in: ["booked", "checked_in", "completed", "pending"] } }).populate('property');
             for (const b of bookings) {
                 if (b.property && b.property.owner) {
                     contactIds.add(b.property.owner.toString());
@@ -24,20 +24,23 @@ const getContacts = async (req, res) => {
             const propertyIds = properties.map(p => p._id);
             
             // Find bookings for these properties
-            const bookings = await Booking.find({ property: { $in: propertyIds }, status: { $in: ["booked", "checked_in", "completed"] } });
+            const bookings = await Booking.find({ property: { $in: propertyIds }, status: { $in: ["booked", "checked_in", "completed", "pending"] } });
             for (const b of bookings) {
                 if (b.user) {
                     contactIds.add(b.user.toString());
                 }
             }
+        } else if (role === 'admin') {
+            const allUsers = await User.find({ _id: { $ne: userId } }).select('_id');
+            allUsers.forEach(u => contactIds.add(u._id.toString()));
         }
         
         // Exclude self
         contactIds.delete(userId.toString());
         
-        const contacts = await User.find({ _id: { $in: Array.from(contactIds) } }).select('firstname lastname role email');
+        const contacts = await User.find({ _id: { $in: Array.from(contactIds) } }).select('firstname lastname role email profilePicture');
         
-        // Also we want to attach the last message for each contact to show in the UI
+        // Attach last message and unread count for each contact
         const contactList = await Promise.all(contacts.map(async contact => {
             const lastMsg = await Message.findOne({
                 $or: [
@@ -57,14 +60,14 @@ const getContacts = async (req, res) => {
                 firstname: contact.firstname,
                 lastname: contact.lastname,
                 role: contact.role,
+                profilePicture: contact.profilePicture,
                 lastMsg: lastMsg ? lastMsg.text || (lastMsg.image ? "Sent an image" : "") : "",
                 time: lastMsg ? lastMsg.createdAt : null,
                 unread: unreadCount,
-                online: false // This will be handled in frontend via socket
+                online: false
             };
         }));
         
-        // Sort by most recent message
         contactList.sort((a, b) => {
             if (!a.time) return 1;
             if (!b.time) return -1;
@@ -103,4 +106,27 @@ const getMessages = async (req, res) => {
     }
 };
 
-module.exports = { getContacts, getMessages };
+const sendMessage = async (req, res) => {
+    try {
+        const { receiver, text, image } = req.body;
+        const sender = req.user._id;
+
+        if (!receiver || (!text && !image)) {
+            return res.status(400).json({ success: false, message: "Receiver and message content required" });
+        }
+
+        const newMsg = await Message.create({ sender, receiver, text, image, read: false });
+
+        if (global.io) {
+            global.io.to(receiver.toString()).emit("new_message", newMsg);
+            global.io.to(sender.toString()).emit("message_sent", newMsg);
+        }
+
+        return res.status(201).json({ success: true, data: newMsg });
+    } catch (err) {
+        console.error("sendMessage error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+module.exports = { getContacts, getMessages, sendMessage };

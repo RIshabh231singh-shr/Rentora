@@ -5,19 +5,26 @@ function registerSocketHandlers(io) {
         console.log("WebSocket client connected:", socket.id);
 
         socket.on("register", (userId) => {
-            socket.join(userId);
-            console.log(`Socket ${socket.id} registered to user room ${userId}`);
+            if (userId) {
+                const roomName = userId.toString();
+                socket.join(roomName);
+                console.log(`Socket ${socket.id} registered to user room ${roomName}`);
+            }
         });
 
         socket.on("send_message", async (data) => {
             try {
                 const { sender, receiver, text, image } = data;
-                const newMsg = await Message.create({ sender, receiver, text, image, read: false });
+                if (!sender || !receiver || (!text && !image)) return;
 
-                // Emit to receiver
-                io.to(receiver).emit("new_message", newMsg);
-                // Emit back to sender (for acknowledgment)
-                io.to(sender).emit("message_sent", newMsg);
+                const newMsg = await Message.create({ sender, receiver, text, image, read: false });
+                const senderRoom = sender.toString();
+                const receiverRoom = receiver.toString();
+
+                // Emit to receiver's room
+                io.to(receiverRoom).emit("new_message", newMsg);
+                // Emit back to sender's room (acknowledgment)
+                io.to(senderRoom).emit("message_sent", newMsg);
             } catch (err) {
                 console.error("send_message error:", err);
             }
@@ -26,11 +33,12 @@ function registerSocketHandlers(io) {
         socket.on("mark_read", async (data) => {
             try {
                 const { sender, receiver } = data;
+                if (!sender || !receiver) return;
                 await Message.updateMany(
                     { sender, receiver, read: false },
                     { $set: { read: true } }
                 );
-                io.to(sender).emit("messages_read", { reader: receiver });
+                io.to(sender.toString()).emit("messages_read", { reader: receiver });
             } catch (err) {
                 console.error("mark_read error:", err);
             }

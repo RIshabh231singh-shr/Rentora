@@ -128,16 +128,34 @@ export default function Messages() {
     scrollToBottom();
   }, [messages, selectedId]);
 
-  const handleSend = () => {
-    if (!input.trim() || !selectedId || !window.socket) return;
-    
-    window.socket.emit("send_message", {
-      sender: user._id || user.id,
-      receiver: selectedId,
-      text: input.trim()
-    });
-    
+  const handleSend = async () => {
+    if (!input.trim() || !selectedId) return;
+    const currentUserId = user?._id || user?.id;
+    const textMsg = input.trim();
     setInput("");
+
+    if (window.socket && window.socket.connected) {
+      window.socket.emit("send_message", {
+        sender: currentUserId,
+        receiver: selectedId,
+        text: textMsg
+      });
+    } else {
+      try {
+        const res = await api.post("/messages/send", {
+          receiver: selectedId,
+          text: textMsg
+        });
+        if (res.data.success) {
+          setMessages(prev => {
+            const current = prev[selectedId] || [];
+            return { ...prev, [selectedId]: [...current, res.data.data] };
+          });
+        }
+      } catch (err) {
+        console.error("HTTP send message error:", err);
+      }
+    }
   };
 
   const selectedConversation = contacts.find(c => c._id === selectedId);

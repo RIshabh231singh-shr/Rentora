@@ -642,7 +642,12 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
   useEffect(() => {
     if (!user) return;
     const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE_URL || "https://rentora-xonw.onrender.com";
-    const socket = io(socketUrl);
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      withCredentials: true
+    });
+    window.socket = socket;
+
     socket.emit("register", user._id || user.id);
     socket.on("notification", (data) => {
       const id = Date.now();
@@ -678,6 +683,7 @@ export default function Layout({ children, pageTitle = "Rentora" }) {
     return () => {
       socket.off("notification");
       socket.disconnect();
+      window.socket = null;
     };
   }, [user]);
 
