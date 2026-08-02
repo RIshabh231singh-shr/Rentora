@@ -545,6 +545,13 @@ const approveCancellation = async (req, res) => {
             });
         }
 
+        const ownerNotif = await Notification.findOne({ relatedBooking: booking._id, type: "CANCELLATION_REQUESTED" });
+        if (ownerNotif) {
+            ownerNotif.message = ownerNotif.message.replace(" - Approved", "").replace(" - Declined", "") + " - Approved";
+            ownerNotif.status = "read";
+            await ownerNotif.save();
+        }
+
         Notification.create({
             recipient: booking.user,
             type: "BOOKING_CANCELLED",
@@ -554,6 +561,10 @@ const approveCancellation = async (req, res) => {
             relatedBooking: booking._id,
             status: "unread"
         }).catch(() => {});
+
+        const { clearDashboardCache } = require("../utilities/cacheHelper");
+        await clearDashboardCache(req.user.id);
+        await clearDashboardCache(booking.user);
 
         return res.status(200).json({ success: true, message: "Cancellation approved successfully." });
     } catch (err) {
@@ -578,6 +589,13 @@ const rejectCancellation = async (req, res) => {
         booking.status = "booked";
         await booking.save();
 
+        const ownerNotif = await Notification.findOne({ relatedBooking: booking._id, type: "CANCELLATION_REQUESTED" });
+        if (ownerNotif) {
+            ownerNotif.message = ownerNotif.message.replace(" - Approved", "").replace(" - Declined", "") + " - Declined";
+            ownerNotif.status = "read";
+            await ownerNotif.save();
+        }
+
         Notification.create({
             recipient: booking.user,
             type: "BOOKING_REJECTED",
@@ -587,6 +605,10 @@ const rejectCancellation = async (req, res) => {
             relatedBooking: booking._id,
             status: "unread"
         }).catch(() => {});
+
+        const { clearDashboardCache } = require("../utilities/cacheHelper");
+        await clearDashboardCache(req.user.id);
+        await clearDashboardCache(booking.user);
 
         return res.status(200).json({ success: true, message: "Cancellation request rejected." });
     } catch (err) {
@@ -916,6 +938,10 @@ const approveBooking = async (req, res) => {
             }
         }).catch(err => console.error("Notification failed:", err));
 
+        const { clearDashboardCache } = require("../utilities/cacheHelper");
+        await clearDashboardCache(req.user.id);
+        await clearDashboardCache(booking.user);
+
         return res.status(200).json({ success: true, message: "Booking approved successfully" });
     } catch (err) {
         console.error("approveBooking error:", err);
@@ -982,6 +1008,10 @@ const rejectBooking = async (req, res) => {
                 });
             }
         }).catch(err => console.error("Notification failed:", err));
+
+        const { clearDashboardCache } = require("../utilities/cacheHelper");
+        await clearDashboardCache(req.user.id);
+        await clearDashboardCache(booking.user);
 
         return res.status(200).json({ success: true, message: "Booking rejected successfully" });
     } catch (err) {

@@ -165,6 +165,7 @@ export default function Bookings() {
   const [tab, setTab] = useState("all");
   const [viewBooking, setViewBooking] = useState(null);
   const [cancelId, setCancelId] = useState(null);
+  const [toastMsg, setToastMsg] = useState("");
 
   useEffect(() => {
     const s = localStorage.getItem("user");
@@ -184,9 +185,13 @@ export default function Bookings() {
 
   const handleCancel = async (id) => {
     try {
-      await api.delete(`/bookings/${id}`);
+      const res = await api.delete(`/bookings/${id}`);
+      setToastMsg(res.data?.message || "Your cancellation request has been sent to the host for approval!");
+      setBookings(prev => prev.map(b => b._id === id ? { ...b, status: "cancellation_requested" } : b));
       fetchBookings();
-    } catch {}
+    } catch (err) {
+      setToastMsg(err.response?.data?.message || "Failed to submit cancellation request.");
+    }
     setCancelId(null);
   };
 
@@ -246,6 +251,19 @@ export default function Bookings() {
             </button>
           ))}
         </div>
+
+        {/* Toast notification banner */}
+        {toastMsg && (
+          <div className="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm font-semibold flex items-center justify-between shadow-sm animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <span className="size-2 rounded-full bg-blue-500 animate-pulse" />
+              <span>{toastMsg}</span>
+            </div>
+            <button onClick={() => setToastMsg("")} className="text-blue-500 hover:text-blue-800 text-xs font-bold px-2 py-1 rounded-lg hover:bg-blue-100/50 transition-colors">
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Booking list */}
         {loading ? (

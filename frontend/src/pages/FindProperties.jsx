@@ -254,7 +254,7 @@ export default function FindProperties({ myRentalsMode = false }) {
         bookingEndTime: endTime.toISOString(),
       });
       if (res.data.success) {
-        setBookingMsg({ type: "success", text: "🎉 Booking confirmed!" });
+        setBookingMsg({ type: "success", text: "🎉 Your booking request has been sent to the host!" });
         setStartHour(null);
         setEndHour(null);
         fetchAvailability(viewProp._id, bookingDate);

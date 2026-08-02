@@ -52,32 +52,51 @@ function KPICard({ label, value, sub, color, icon: Icon, loading }) {
   );
 }
 
-function UserRow({ user, onRoleChange }) {
+function UserRow({ user, onRoleChange, onApproveRole, onRejectRole }) {
   return (
     <div className="flex items-center gap-4 py-3 border-b border-slate-50 last:border-0">
       <Avatar name={`${user.firstname} ${user.lastname || ""}`} size="sm" />
-      <div className="flex-1 min-w-0 flex items-center gap-2">
+      <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
         <div>
           <p className="text-sm font-semibold text-slate-900 truncate">{user.firstname} {user.lastname}</p>
           <p className="text-xs text-slate-400 truncate">{user.email}</p>
         </div>
         {user.requestedRole && (
-          <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">
+          <span className="px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center gap-1 border border-purple-200">
+            <ShieldCheck className="size-3 text-purple-600" />
             Requested: {user.requestedRole}
           </span>
         )}
       </div>
-      
-      <select 
-        value={user.role} 
-        onChange={(e) => onRoleChange(user._id, e.target.value)}
-        className={`px-2 py-1 rounded-lg text-xs font-bold capitalize cursor-pointer outline-none border-none ${ROLE_COLORS[user.role] || "bg-slate-100 text-slate-600"}`}
-      >
-        <option value="tenant">Tenant</option>
-        <option value="landlord">Landlord</option>
-        <option value="admin">Admin</option>
-        <option value="maintenance_staff">Staff</option>
-      </select>
+
+      {user.requestedRole ? (
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={() => onRejectRole(user._id)}
+            className="px-2.5 py-1 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 cursor-pointer transition-colors"
+          >
+            Reject
+          </button>
+          <button
+            onClick={() => onApproveRole(user._id)}
+            className="px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 border-none cursor-pointer transition-colors flex items-center gap-1"
+          >
+            <CheckCircle2 className="size-3" />
+            Approve
+          </button>
+        </div>
+      ) : (
+        <select 
+          value={user.role} 
+          onChange={(e) => onRoleChange(user._id, e.target.value)}
+          className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize cursor-pointer outline-none border-none ${ROLE_COLORS[user.role] || "bg-slate-100 text-slate-600"}`}
+        >
+          <option value="tenant">Tenant</option>
+          <option value="landlord">Landlord</option>
+          <option value="admin">Admin</option>
+          <option value="maintenance_staff">Staff</option>
+        </select>
+      )}
 
       <span className="text-[10px] text-slate-400 w-20 text-right">{new Date(user.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" })}</span>
     </div>
@@ -136,15 +155,23 @@ export default function AdminPanel() {
     }
   };
 
+  const [pendingRoleRequests, setPendingRoleRequests] = useState([]);
+
   const fetchUsersData = async () => {
     setFetchingUsers(true);
     try {
       const res = await userService.getUsers();
-      let list = res.data || [];
+      let allList = res.data || [];
+      const roleReqs = allList.filter(u => !!u.requestedRole);
+      setPendingRoleRequests(roleReqs);
+
+      let list = [...allList];
       if (search) {
         list = list.filter(u => `${u.firstname} ${u.lastname} ${u.email}`.toLowerCase().includes(search.toLowerCase()));
       }
-      if (roleFilter !== "all") {
+      if (roleFilter === "requested") {
+        list = list.filter(u => !!u.requestedRole);
+      } else if (roleFilter !== "all") {
         list = list.filter(u => u.role === roleFilter);
       }
       setTotalUsers(list.length);
@@ -175,6 +202,24 @@ export default function AdminPanel() {
       fetchUsersData();
     } catch (err) {
       alert("Failed to update role");
+    }
+  };
+
+  const handleApproveRole = async (userId) => {
+    try {
+      await userService.approveRoleRequest(userId);
+      fetchUsersData();
+    } catch (err) {
+      alert("Failed to approve role request");
+    }
+  };
+
+  const handleRejectRole = async (userId) => {
+    try {
+      await userService.rejectRoleRequest(userId);
+      fetchUsersData();
+    } catch (err) {
+      alert("Failed to reject role request");
     }
   };
 
@@ -277,50 +322,86 @@ export default function AdminPanel() {
         )}
 
         {tab === "users" && (
-          <GlassCard className="p-5">
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between mb-6">
-              <SectionHeader
-                title="User Management"
-                subtitle={`Managing ${totalUsers} platform users`}
-                noMargin
-              />
-              <div className="flex gap-2">
-                <div className="relative">
-                  <Search className="size-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search name or email..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="form-input w-60 py-1.5 text-sm"
-                    style={{ paddingLeft: "2.5rem" }}
-                  />
+          <div className="flex flex-col gap-6">
+            {pendingRoleRequests.length > 0 && (
+              <GlassCard className="p-5 border border-purple-200 bg-purple-50/40">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="size-8 rounded-lg bg-purple-600 flex items-center justify-center text-white">
+                      <ShieldCheck className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-base">Pending Role Change Requests</h3>
+                      <p className="text-xs text-slate-500">{pendingRoleRequests.length} user(s) requested a role upgrade</p>
+                    </div>
+                  </div>
+                  <Badge color="purple">{pendingRoleRequests.length} Pending</Badge>
                 </div>
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="form-input py-1.5 text-sm bg-white"
-                >
-                  <option value="all">All Roles</option>
-                  <option value="tenant">Tenant</option>
-                  <option value="landlord">Landlord</option>
-                  <option value="maintenance_staff">Staff</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-            </div>
-
-            {fetchingUsers ? (
-              <div className="flex flex-col gap-2">{[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" />)}</div>
-            ) : users.length === 0 ? (
-              <EmptyState icon={<Users className="size-6" />} title="No users found" description="No users match your criteria" />
-            ) : (
-              <div className="flex flex-col">
-                {users.map(user => (
-                  <UserRow key={user._id} user={user} onRoleChange={handleRoleChange} />
-                ))}
-              </div>
+                <div className="flex flex-col gap-2">
+                  {pendingRoleRequests.map(reqUser => (
+                    <UserRow
+                      key={reqUser._id}
+                      user={reqUser}
+                      onRoleChange={handleRoleChange}
+                      onApproveRole={handleApproveRole}
+                      onRejectRole={handleRejectRole}
+                    />
+                  ))}
+                </div>
+              </GlassCard>
             )}
+
+            <GlassCard className="p-5">
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between mb-6">
+                <SectionHeader
+                  title="User Management"
+                  subtitle={`Managing ${totalUsers} platform users`}
+                  noMargin
+                />
+                <div className="flex gap-2">
+                  <div className="relative">
+                    <Search className="size-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search name or email..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="form-input w-60 py-1.5 text-sm"
+                      style={{ paddingLeft: "2.5rem" }}
+                    />
+                  </div>
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className="form-input py-1.5 text-sm bg-white"
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="requested">Role Requests ({pendingRoleRequests.length})</option>
+                    <option value="tenant">Tenant</option>
+                    <option value="landlord">Landlord</option>
+                    <option value="maintenance_staff">Staff</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              {fetchingUsers ? (
+                <div className="flex flex-col gap-2">{[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" />)}</div>
+              ) : users.length === 0 ? (
+                <EmptyState icon={<Users className="size-6" />} title="No users found" description="No users match your criteria" />
+              ) : (
+                <div className="flex flex-col">
+                  {users.map(user => (
+                    <UserRow
+                      key={user._id}
+                      user={user}
+                      onRoleChange={handleRoleChange}
+                      onApproveRole={handleApproveRole}
+                      onRejectRole={handleRejectRole}
+                    />
+                  ))}
+                </div>
+              )}
 
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
@@ -344,6 +425,7 @@ export default function AdminPanel() {
               </div>
             )}
           </GlassCard>
+        </div>
         )}
 
         {tab === "maintenance" && (

@@ -167,6 +167,9 @@ const approveRoleRequest = async (req, res) => {
             { $set: { status: "read", message: `Role change to ${targetUser.role} approved.` } }
         );
 
+        const { clearAllDashboardCaches } = require("../utilities/cacheHelper");
+        await clearAllDashboardCaches();
+
         return res.status(200).json({ success: true, message: "Role approved successfully" });
     } catch (err) {
         console.error("approveRoleRequest error:", err);
@@ -199,6 +202,9 @@ const rejectRoleRequest = async (req, res) => {
             { type: "ROLE_CHANGE_REQUEST", relatedUser: targetUser._id },
             { $set: { status: "read", message: `Role change to ${requestedRole} rejected.` } }
         );
+
+        const { clearAllDashboardCaches } = require("../utilities/cacheHelper");
+        await clearAllDashboardCaches();
 
         return res.status(200).json({ success: true, message: "Role rejected successfully" });
     } catch (err) {

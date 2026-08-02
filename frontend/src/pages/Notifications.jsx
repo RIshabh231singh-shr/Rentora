@@ -21,6 +21,11 @@ function NotifItem({ notif, onApproveBooking, onRejectBooking, onApproveLease, o
   const { icon: Icon, color } = TYPE_ICONS[notif.type] || TYPE_ICONS.default;
   const bookingId = notif.relatedBooking?._id || notif.relatedBooking;
   const isPendingBooking = notif.relatedBooking?.status === "pending";
+  const isAlreadyActioned = notif.isActioned || 
+    notif.message.includes("- Approved") || 
+    notif.message.includes("- Declined") || 
+    (notif.type === "ROLE_CHANGE_REQUEST" && (notif.message.includes("approved") || notif.message.includes("rejected"))) ||
+    (notif.type === "CANCELLATION_REQUESTED" && notif.relatedBooking?.status && notif.relatedBooking?.status !== "cancellation_requested");
 
   return (
     <motion.div
@@ -56,83 +61,84 @@ function NotifItem({ notif, onApproveBooking, onRejectBooking, onApproveLease, o
           </div>
           <p className="text-slate-600 text-sm leading-relaxed">{notif.message}</p>
 
-          <div className="mt-3 flex gap-2 flex-wrap">
-            {notif.type === "BOOKING_CREATED" && bookingId && isPendingBooking && (
+          <div className="mt-3 flex gap-2 flex-wrap items-center">
+            {isAlreadyActioned ? (
+              <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-semibold rounded-xl flex items-center gap-1.5 border border-slate-200">
+                <CheckCircle2 className="size-3.5 text-emerald-600" />
+                Action Completed
+              </span>
+            ) : (
               <>
-                <button
-                  onClick={() => onRejectBooking(bookingId, notif._id)}
-                  disabled={actioning === notif._id}
-                  className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 cursor-pointer transition-colors disabled:opacity-50"
-                >
-                  Decline
-                </button>
-                <button
-                  onClick={() => onApproveBooking(bookingId, notif._id)}
-                  disabled={actioning === notif._id}
-                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
-                >
-                  <CheckCircle2 className="size-3" />
-                  {actioning === notif._id ? "Processing..." : "Confirm"}
-                </button>
+                {notif.type === "BOOKING_CREATED" && bookingId && isPendingBooking && (
+                  <>
+                    <button
+                      onClick={() => onRejectBooking(bookingId, notif._id)}
+                      disabled={actioning === notif._id}
+                      className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 cursor-pointer transition-colors disabled:opacity-50"
+                    >
+                      Decline
+                    </button>
+                    <button
+                      onClick={() => onApproveBooking(bookingId, notif._id)}
+                      disabled={actioning === notif._id}
+                      className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <CheckCircle2 className="size-3" />
+                      {actioning === notif._id ? "Processing..." : "Confirm"}
+                    </button>
+                  </>
+                )}
+                {notif.type === "TENANT_REQUEST" && notif.relatedProperty && notif.relatedUser && (
+                  <>
+                    <button
+                      onClick={() => onRejectLease(notif.relatedProperty._id, notif.relatedUser._id, notif._id)}
+                      disabled={actioning === notif._id}
+                      className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 cursor-pointer transition-colors disabled:opacity-50"
+                    >
+                      Decline
+                    </button>
+                    <button
+                      onClick={() => onApproveLease(notif.relatedProperty._id, notif.relatedUser._id, notif._id)}
+                      disabled={actioning === notif._id}
+                      className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <CheckCircle2 className="size-3" />
+                      {actioning === notif._id ? "Processing..." : "Approve"}
+                    </button>
+                  </>
+                )}
+                {notif.type === "ROLE_CHANGE_REQUEST" && notif.relatedUser && (
+                  <>
+                    <button
+                      onClick={() => onRoleAction(notif.relatedUser, "reject", notif._id)}
+                      disabled={actioning === notif._id}
+                      className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 cursor-pointer transition-colors disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => onRoleAction(notif.relatedUser, "approve", notif._id)}
+                      disabled={actioning === notif._id}
+                      className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <CheckCircle2 className="size-3" />
+                      {actioning === notif._id ? "Processing..." : "Approve"}
+                    </button>
+                  </>
+                )}
+                {notif.type === "CANCELLATION_REQUESTED" && bookingId && (
+                  <button
+                    onClick={() => onApproveBooking(bookingId, notif._id, "approve-cancellation")}
+                    disabled={actioning === notif._id}
+                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <CheckCircle2 className="size-3" />
+                    {actioning === notif._id ? "Processing..." : "Approve Cancellation"}
+                  </button>
+                )}
               </>
             )}
-            {notif.type === "BOOKING_CREATED" && bookingId && !isPendingBooking && (
-              <span className="px-3 py-1 bg-slate-100 text-slate-500 text-xs font-semibold rounded-xl">Already actioned</span>
-            )}
-            {notif.type === "TENANT_REQUEST" && notif.relatedProperty && notif.relatedUser && (
-              <>
-                <button
-                  onClick={() => onRejectLease(notif.relatedProperty._id, notif.relatedUser._id, notif._id)}
-                  disabled={actioning === notif._id}
-                  className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 cursor-pointer transition-colors disabled:opacity-50"
-                >
-                  Decline
-                </button>
-                <button
-                  onClick={() => onApproveLease(notif.relatedProperty._id, notif.relatedUser._id, notif._id)}
-                  disabled={actioning === notif._id}
-                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
-                >
-                  <CheckCircle2 className="size-3" />
-                  {actioning === notif._id ? "Processing..." : "Approve"}
-                </button>
-              </>
-            )}
-            {notif.type === "ROLE_CHANGE_REQUEST" && notif.relatedUser && !notif.message.includes("approved") && !notif.message.includes("rejected") && (
-              <>
-                <button
-                  onClick={() => onRoleAction(notif.relatedUser, "reject", notif._id)}
-                  disabled={actioning === notif._id}
-                  className="px-3.5 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 cursor-pointer transition-colors disabled:opacity-50"
-                >
-                  Reject
-                </button>
-                <button
-                  onClick={() => onRoleAction(notif.relatedUser, "approve", notif._id)}
-                  disabled={actioning === notif._id}
-                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
-                >
-                  <CheckCircle2 className="size-3" />
-                  {actioning === notif._id ? "Processing..." : "Approve"}
-                </button>
-              </>
-            )}
-            {notif.type === "CANCELLATION_REQUESTED" && bookingId && notif.relatedBooking?.status === "cancellation_requested" && (
-              <>
-                <button
-                  onClick={() => onApproveBooking(bookingId, notif._id, "approve-cancellation")}
-                  disabled={actioning === notif._id}
-                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
-                >
-                  <CheckCircle2 className="size-3" />
-                  {actioning === notif._id ? "Processing..." : "Approve Cancellation"}
-                </button>
-              </>
-            )}
-            {notif.type === "CANCELLATION_REQUESTED" && bookingId && notif.relatedBooking?.status !== "cancellation_requested" && (
-              <span className="px-3 py-1 bg-slate-100 text-slate-500 text-xs font-semibold rounded-xl">Already actioned</span>
-            )}
-            {notif.type === "ROLE_CHANGE_REQUEST" && (
+            {notif.type === "ROLE_CHANGE_REQUEST" && !isAlreadyActioned && (
               <button
                 onClick={() => navigate("/admin")}
                 className="px-3.5 py-1.5 text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 rounded-xl border-none cursor-pointer transition-colors"
@@ -178,8 +184,23 @@ export default function Notifications() {
     try { await dashboardService.markNotificationsAsRead(); } catch {}
   };
 
+  const markLocalActioned = (notifId, resultLabel) => {
+    setNotifications(prev => prev.map(n => {
+      if (n._id === notifId) {
+        return {
+          ...n,
+          isActioned: true,
+          status: "read",
+          message: `${n.message} - ${resultLabel}`
+        };
+      }
+      return n;
+    }));
+  };
+
   const handleApproveBooking = async (bookingId, notifId, action = "approve") => {
     setActioning(notifId);
+    markLocalActioned(notifId, action === "approve-cancellation" ? "Approved" : "Approved");
     try {
       if (action === "approve-cancellation") {
         await bookingService.approveCancellation(bookingId);
@@ -193,6 +214,7 @@ export default function Notifications() {
 
   const handleRejectBooking = async (bookingId, notifId) => {
     setActioning(notifId);
+    markLocalActioned(notifId, "Declined");
     try {
       await bookingService.rejectBooking(bookingId);
       await fetchNotifications();
@@ -202,6 +224,7 @@ export default function Notifications() {
 
   const handleApproveLease = async (propertyId, tenantId, notifId) => {
     setActioning(notifId);
+    markLocalActioned(notifId, "Approved");
     try {
       await propertyService.acceptTenantRequest(propertyId, tenantId);
       await fetchNotifications();
@@ -211,6 +234,7 @@ export default function Notifications() {
 
   const handleRejectLease = async (propertyId, tenantId, notifId) => {
     setActioning(notifId);
+    markLocalActioned(notifId, "Declined");
     try {
       await propertyService.rejectTenantRequest(propertyId, tenantId);
       await fetchNotifications();
@@ -220,6 +244,7 @@ export default function Notifications() {
 
   const handleRoleAction = async (userId, action, notifId) => {
     setActioning(notifId);
+    markLocalActioned(notifId, action === "approve" ? "Approved" : "Rejected");
     try {
       if (action === "approve") {
         await userService.approveRoleRequest(userId);

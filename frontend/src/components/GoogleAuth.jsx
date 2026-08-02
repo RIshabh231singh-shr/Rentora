@@ -58,20 +58,23 @@ export default function GoogleAuth({ onSuccess, onError, text = "signin_with" })
   };
 
   const googleBtnRef = useRef(null);
+  const isInitializedRef = useRef(false);
 
   useEffect(() => {
     const initializeGoogleSignIn = () => {
       if (window.google && googleBtnRef.current) {
-        window.google.accounts.id.initialize({
-          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
-          callback: handleGoogleResponse,
-        });
+        if (!isInitializedRef.current) {
+          window.google.accounts.id.initialize({
+            client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
+            callback: handleGoogleResponse,
+          });
+          isInitializedRef.current = true;
+        }
         window.google.accounts.id.renderButton(
           googleBtnRef.current,
           { 
             theme: "outline", 
             size: "large", 
-            width: "100%",
             text: text,
             shape: "rectangular"
           }
