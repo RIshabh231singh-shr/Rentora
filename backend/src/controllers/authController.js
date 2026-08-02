@@ -326,11 +326,20 @@ const googleLogin = async (req, res) => {
         let user = await User.findOne({ $or: [{ googleId }, { email }] });
 
         if (user) {
+            let isChanged = false;
             if (!user.googleId) {
                 user.googleId = googleId;
-                if (profilePicture && !user.profilePicture) {
-                    user.profilePicture = profilePicture;
-                }
+                isChanged = true;
+            }
+            if (profilePicture && !user.profilePicture) {
+                user.profilePicture = profilePicture;
+                isChanged = true;
+            }
+            if (!user.isVerified) {
+                user.isVerified = true;
+                isChanged = true;
+            }
+            if (isChanged) {
                 await user.save();
             }
 
